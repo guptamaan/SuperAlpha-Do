@@ -1,0 +1,8 @@
+discord.py
+python-dotenv
+aiohttp
+yt-dlp
+PyNaCl
+pyfiglet
+psutil
+openai
