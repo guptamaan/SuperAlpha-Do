@@ -20,16 +20,25 @@ class TicTacToe:
         self.game_over = False
         self.winner = None
 
+    @staticmethod
+    def _cell(value: str) -> str:
+        """Return a fixed-width board glyph so the grid never misaligns."""
+        if value == "❌":
+            return "X"
+        if value == "⭕":
+            return "O"
+        return value
+
     def render(self) -> str:
         board = self.board
         return (
-            f"```\n"
-            f" {board[0][0]} │ {board[0][1]} │ {board[0][2]} \n"
-            f"───┼───┼───\n"
-            f" {board[1][0]} │ {board[1][1]} │ {board[1][2]} \n"
-            f"───┼───┼───\n"
-            f" {board[2][0]} │ {board[2][1]} │ {board[2][2]} \n"
-            f"```"
+            "```\n"
+            f" {self._cell(board[0][0])} │ {self._cell(board[0][1])} │ {self._cell(board[0][2])} \n"
+            "───┼───┼───\n"
+            f" {self._cell(board[1][0])} │ {self._cell(board[1][1])} │ {self._cell(board[1][2])} \n"
+            "───┼───┼───\n"
+            f" {self._cell(board[2][0])} │ {self._cell(board[2][1])} │ {self._cell(board[2][2])} \n"
+            "```"
         )
 
     def check_win(self, symbol: str) -> bool:
@@ -216,7 +225,7 @@ class Games(commands.Cog, name="games"):
 
         embed = discord.Embed(
             title="❌⭕ Tic-Tac-Toe",
-            description=f"{ctx.author.mention} vs {opponent.mention}\n\n{game.render()}\n\n**{ctx.author.mention}'s turn** (❌)\nPick a number 1-9 to place your mark.",
+            description=f"❌ = X · ⭕ = O\n\n{game.render()}\n\n**{ctx.author.mention}'s turn** (❌)\nPick a number 1-9 to place your mark.",
             color=0x3498DB,
         )
         embed.set_footer(text="Type a number to play | Game ID: " + str(ctx.channel.id))
@@ -235,7 +244,7 @@ class Games(commands.Cog, name="games"):
                 if result and ("wins" in result or "draw" in result):
                     embed = discord.Embed(
                         title="❌⭕ Game Over",
-                        description=f"{game.render()}\n\n{result}",
+                        description=f"❌ = X · ⭕ = O\n\n{game.render()}\n\n{result}",
                         color=0x2ECC71 if "wins" in result else 0xF39C12,
                     )
                     await move_msg.delete()
@@ -250,7 +259,7 @@ class Games(commands.Cog, name="games"):
                 await move_msg.delete()
                 new_embed = discord.Embed(
                     title="❌⭕ Tic-Tac-Toe",
-                    description=f"{game.render()}\n\n**{game.current.mention}'s turn** ({game.players[game.current]})",
+                    description=f"❌ = X · ⭕ = O\n\n{game.render()}\n\n**{game.current.mention}'s turn** ({game.players[game.current]})",
                     color=0x3498DB,
                 )
                 new_embed.set_footer(text="Type a number to play")
