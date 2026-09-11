@@ -167,36 +167,60 @@ class System(commands.Cog, name="system"):
     # ── man ───────────────────────────────────────────────────────────────────
     @commands.command(name="man", aliases=["help", "--help", "-h", "ls"])
     async def man(self, ctx: commands.Context, *, command_name: str | None = None) -> None:
-        """Show the manual page for a command or list all commands. Usage: sudo man [command]"""
+        """Show the manual page for a command or list all commands. Usage: alpha man [command]"""
+        prefix = ctx.clean_prefix
+
         if command_name:
             cmd = self.bot.get_command(command_name)
             if cmd is None:
                 await ctx.send(f"```bash\nNo manual entry for {command_name}\n```")
                 return
+
             embed = discord.Embed(
-                title=f"MAN PAGE — sudo {cmd.qualified_name}",
+                title=f"MAN PAGE — {prefix}{cmd.qualified_name}",
                 description=cmd.help or "No description available.",
                 color=0x2ECC71,
             )
-            embed.add_field(
-                name="SYNOPSIS",
-                value=f"`sudo {cmd.qualified_name} {cmd.signature}`",
-                inline=False,
-            )
+
+            synopsis = None
+            if cmd.help:
+                for line in cmd.help.splitlines():
+                    line = line.strip()
+                    low = line.lower()
+                    if low.startswith("usage:"):
+                        synopsis = line[len("usage:"):].strip()
+                        break
+                    if low.startswith("synopsis:"):
+                        synopsis = line[len("synopsis:"):].strip()
+                        break
+            synopsis = synopsis or f"{prefix}{cmd.qualified_name} {cmd.signature}"
+            embed.add_field(name="SYNOPSIS", value=f"`{synopsis}`", inline=False)
+
             if cmd.aliases:
                 alias_str = ", ".join(f"`{a}`" for a in cmd.aliases)
-                embed.add_field(
-                    name="ALIASES",
-                    value=alias_str,
-                    inline=False,
-                )
+                embed.add_field(name="ALIASES", value=alias_str, inline=False)
+
+            try:
+                from cogs.linux import LINUX_ALIASES
+                linux_aliases = LINUX_ALIASES.get(cmd.name)
+                if linux_aliases:
+                    embed.add_field(
+                        name="LINUX ALIASES",
+                        value=", ".join(f"`{a}`" for a in linux_aliases),
+                        inline=False,
+                    )
+            except Exception:
+                pass
+
+            embed.set_footer(text=f"{prefix}man {cmd.qualified_name}")
             await ctx.send(embed=embed)
             return
 
         # Full command listing grouped by cog
         embed = discord.Embed(
-            title="📖  sudo man  —  Command Manual",
-            description="Prefix: `sudo <command>` or `Sudo <command>`\nUse `sudo man <command>` / `Sudo man <command>` for detailed info.\nMany commands have Linux/Arch aliases (e.g., `sudo ls` shows all commands).",
+            title="📖  man  —  Command Manual",
+            description=f"Prefix: `{prefix} <command>`\nUse `{prefix}man <command>` for detailed info.\n"
+            "Many commands have Linux/Arch aliases (e.g., `alpha ls` shows all commands).",
             color=0x3498DB,
         )
         for cog_name, cog in sorted(self.bot.cogs.items()):
@@ -204,7 +228,7 @@ class System(commands.Cog, name="system"):
             if cmds:
                 value = "  ".join(f"`{c.name}`" for c in cmds)
                 embed.add_field(name=f"[{cog_name.upper()}]", value=value, inline=False)
-        embed.set_footer(text="sudo man <command> / Sudo man <command> for detailed usage")
+        embed.set_footer(text=f"{prefix}man <command> for detailed usage")
         await ctx.send(embed=embed)
 
     # ── status ────────────────────────────────────────────────────────────────

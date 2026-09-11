@@ -6,3 +6,4 @@ PyNaCl
 pyfiglet
 psutil
 openai
+davey

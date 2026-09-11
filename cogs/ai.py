@@ -1,6 +1,6 @@
 """
 cogs/ai.py — AI chat and generation commands.
-Uses the official OpenAI SDK (Responses API) against Groq.
+Uses the official OpenAI SDK (Chat Completions API) against Groq.
 Per-user conversation memory stored in data/ai_memory/.
 Commands: ai, imagine, summarize, explain, code, aitranslate, aihistory, aiclear
 """
@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import pathlib
+import traceback
 
 import discord
 from discord.ext import commands
@@ -77,6 +78,7 @@ class AI(commands.Cog, name="ai"):
             self._client = AsyncOpenAI(
                 api_key=self._api_key, base_url=GROQ_BASE_URL
             )
+            log.info("AI cog loaded — model: %s", self._model)
         else:
             log.warning(
                 "GROQ_API_KEY not set in .env — AI commands will fail."
@@ -102,28 +104,28 @@ class AI(commands.Cog, name="ai"):
         if not self._api_key or self._client is None:
             return None
 
-        request_input = messages
-        instructions: str | None = None
-        if messages and messages[0].get("role") == "system":
-            instructions = messages[0].get("content")
-            request_input = messages[1:]
-
         try:
-            response = await self._client.responses.create(
+            response = await self._client.chat.completions.create(
                 model=self._model,
-                instructions=instructions,
-                input=request_input,
+                messages=messages,
                 temperature=temperature,
-                max_output_tokens=max_output_tokens,
+                max_tokens=max_output_tokens,
             )
         except Exception as e:
             self._last_error = e
+            print(f"Groq request failed: {e}")
+            traceback.print_exc()
             log.error("Groq request failed: %s", e)
             return None
 
-        text = getattr(response, "output_text", None)
+        try:
+            text = response.choices[0].message.content
+        except (AttributeError, IndexError):
+            log.error("Groq API returned unexpected response: %r", response)
+            return None
+
         if not text or not isinstance(text, str):
-            log.error("Groq API returned no output_text: %r", response)
+            log.error("Groq API returned empty content: %r", response)
             return None
 
         return text.strip()

@@ -88,7 +88,7 @@ class MusicGames(commands.Cog, name="musicgames"):
 
     @staticmethod
     def _is_command_like(content: str) -> bool:
-        if content.startswith(("sudo ", "$ ")):
+        if content.startswith(("alpha ", "Alpha ")):
             return True
         if re.match(r"^<@!?&?\d+>\s", content):
             return True

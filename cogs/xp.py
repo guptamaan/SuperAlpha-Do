@@ -117,6 +117,22 @@ def set_xp_enabled(guild_id: int, enabled: bool) -> None:
     save_config(config)
 
 
+def get_level_channel(guild_id: int) -> int | None:
+    config = load_config()
+    data = config.get(str(guild_id))
+    if data:
+        return data.get("level_channel")
+    return None
+
+
+def set_level_channel(guild_id: int, channel_id: int | None) -> None:
+    config = load_config()
+    if str(guild_id) not in config:
+        config[str(guild_id)] = {"enabled": True}
+    config[str(guild_id)]["level_channel"] = channel_id
+    save_config(config)
+
+
 _cumulative_xp_cache: dict[int, int] = {}
 
 
@@ -216,7 +232,11 @@ class XP(commands.Cog, name="xp"):
                 )
                 embed.add_field(name="XP", value=f"{xp_gain} xp earned", inline=True)
                 embed.add_field(name="SP", value=f"{sp_gain} sp earned", inline=True)
-                await message.channel.send(embed=embed)
+                channel = None
+                level_channel_id = get_level_channel(message.guild.id)
+                if level_channel_id:
+                    channel = message.guild.get_channel(level_channel_id)
+                await (channel or message.channel).send(embed=embed)
             except Exception:
                 pass
 
@@ -587,6 +607,53 @@ class XP(commands.Cog, name="xp"):
 
         embed.description = "\n".join(lines)
         await interaction.followup.send(embed=embed)
+
+    @commands.command(name="levelchannel", aliases=["lvlchannel", "levelupchannel"])
+    @perms_or_developer(administrator=True)
+    async def levelchannel(self, ctx: commands.Context, action: str = None, channel: discord.TextChannel = None) -> None:
+        """Set the channel for level-up messages. Usage: sudo levelchannel [set #channel|off|status]"""
+        if not action:
+            current = get_level_channel(ctx.guild.id)
+            if current:
+                ch = ctx.guild.get_channel(current)
+                desc = f"Level-up messages are sent to **{ch.mention if ch else f'<#{current}>'}**."
+            else:
+                desc = "Level-up messages are sent where the user last chatted. Set a channel with `sudo levelchannel set #channel`."
+            embed = discord.Embed(color=0x9B59B6)
+            embed.set_author(name="📣 Level-Up Channel")
+            embed.description = desc
+            await ctx.send(embed=embed)
+            return
+
+        action = action.lower()
+
+        if action in ["set", "channel"]:
+            if channel is None:
+                embed = self._make_embed("❌ Missing Channel", 0xE74C3C, "Usage: `sudo levelchannel set #channel`")
+                await ctx.send(embed=embed)
+                return
+            set_level_channel(ctx.guild.id, channel.id)
+            embed = discord.Embed(color=0x2ECC71)
+            embed.set_author(name="✅ Level-Up Channel Set")
+            embed.description = f"Level-up messages will now be sent to **{channel.mention}**."
+            await ctx.send(embed=embed)
+
+        elif action in ["off", "disable", "none", "clear", "reset"]:
+            set_level_channel(ctx.guild.id, None)
+            embed = discord.Embed(color=0x95A5A6)
+            embed.set_author(name="🔕 Level-Up Channel Cleared")
+            embed.description = "Level-up messages will be sent where the user last chatted."
+            await ctx.send(embed=embed)
+
+        else:
+            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Usage: `sudo levelchannel set #channel | off | status`")
+            await ctx.send(embed=embed)
+
+    @levelchannel.error
+    async def levelchannel_error(self, ctx: commands.Context, error) -> None:
+        if isinstance(error, commands.MissingPermissions):
+            embed = self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission to use this command.")
+            await ctx.send(embed=embed)
 
     @commands.command(name="xpsystem")
     @perms_or_developer(administrator=True)

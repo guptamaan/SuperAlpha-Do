@@ -1,6 +1,6 @@
 """
 cogs/utility.py — Utility commands.
-Commands: poll, remind, calc, rand, publicip, wiki, weather, base64, hash, timestamp,
+Commands: poll, remind, calc, rand, wiki, weather, base64, hash, timestamp,
           embed, say, announce, urban, translate, shorten, define
 """
 
@@ -206,27 +206,6 @@ class Utility(commands.Cog, name="utility"):
         embed.add_field(name="Result", value=f"# **{value}**", inline=False)
         embed.set_footer(text=f"Requested by {ctx.author}")
         await ctx.send(embed=embed)
-
-    # ── publicip ─────────────────────────────────────────────────────────────
-    @commands.command(name="publicip", aliases=["ip"])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def publicip(self, ctx: commands.Context) -> None:
-        """Show the bot's perceived public IP. Usage: sudo publicip"""
-        url = "https://api.ipify.org?format=json"
-        try:
-            async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=6)) as resp:
-                data = await resp.json(content_type=None)
-            ip = data.get("ip")
-            if not ip:
-                raise ValueError("no ip field in response")
-            embed = self._make_embed("🌐 Public IP", 0x3498DB)
-            embed.add_field(name="IP Address", value=f"`{ip}`", inline=False)
-            embed.set_footer(text=f"Requested by {ctx.author}")
-            await ctx.send(embed=embed)
-        except Exception as exc:
-            embed = self._make_embed("🌐 IP Error", 0xE74C3C)
-            embed.description = f"❌ {exc}"
-            await ctx.send(embed=embed)
 
     # ── wiki ──────────────────────────────────────────────────────────────────
     @commands.command(name="wiki", aliases=["wikipedia", "apropos"])

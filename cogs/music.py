@@ -16,6 +16,7 @@ import functools
 import math
 import os
 import random
+import traceback
 from collections import deque
 
 import discord
@@ -286,7 +287,7 @@ class Music(commands.Cog, name="music"):
         return f"Could not fetch that track: `{msg[:200]}`"
 
     async def _fetch_track(self, query: str, requester: discord.Member) -> Track | None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         ydl_opts = get_ytdl_opts()
 
         search_query = query
@@ -343,7 +344,7 @@ class Music(commands.Cog, name="music"):
         return Track(data, requester)
 
     async def _get_spotify_track_info(self, url: str) -> dict | None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             ydl_opts = {
                 "quiet": True,
@@ -365,7 +366,7 @@ class Music(commands.Cog, name="music"):
         return None
 
     async def _get_apple_track_info(self, url: str) -> dict | None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             ydl_opts = {
                 "quiet": True,
@@ -386,8 +387,39 @@ class Music(commands.Cog, name="music"):
             pass
         return None
 
+    def _schedule_play_next(self, guild_id: int) -> None:
+        """Schedule _play_next on the bot loop and surface any errors."""
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self._play_next(guild_id), self.bot.loop
+            )
+        except Exception:
+            traceback.print_exc()
+            return
+
+        def _done_callback(fut) -> None:
+            try:
+                exc = fut.exception()
+            except asyncio.CancelledError:
+                return
+            if exc:
+                print(f"Music queue error in guild {guild_id}:")
+                traceback.print_exception(type(exc), exc, exc.__traceback__)
+
+        try:
+            future.add_done_callback(_done_callback)
+        except Exception:
+            traceback.print_exc()
+
     async def _play_next(self, guild_id: int) -> None:
         """Called when a track finishes; schedules the next one."""
+        try:
+            await self._play_next_impl(guild_id)
+        except Exception:
+            print(f"Music queue error in guild {guild_id}:")
+            traceback.print_exc()
+
+    async def _play_next_impl(self, guild_id: int) -> None:
         player = self._get_player(guild_id)
         if player.game_active:
             return
@@ -396,6 +428,26 @@ class Music(commands.Cog, name="music"):
             player.queue.appendleft(player.current)
         if player.queue:
             player.current = player.queue.popleft()
+            loop = asyncio.get_running_loop()
+            ydl_opts = get_ytdl_opts()
+            try:
+                ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
+                data = await loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        ytdl_instance.extract_info,
+                        player.current.url or f"ytsearch1:{player.current.title}",
+                        download=False,
+                    ),
+                )
+                if data:
+                    if "entries" in data and data["entries"]:
+                        data = data["entries"][0]
+                    new_url = data.get("url", "")
+                    if new_url:
+                        player.current.stream_url = new_url
+            except Exception:
+                pass
             filter_str = build_filter_string(player)
             source = discord.PCMVolumeTransformer(
                 discord.FFmpegPCMAudio(player.current.stream_url, **get_ffmpeg_opts(filter_str)),
@@ -408,16 +460,12 @@ class Music(commands.Cog, name="music"):
 
             def after_callback(error: Exception | None) -> None:
                 if error:
-                    print(f"Playback error: {error}")
-                try:
-                    asyncio.run_coroutine_threadsafe(
-                        self._play_next(guild_id), self.bot.loop
-                    )
-                except Exception:
-                    pass
+                    print(f"Playback error in guild {guild_id}:")
+                    traceback.print_exception(type(error), error, error.__traceback__)
+                self._schedule_play_next(guild_id)
 
             try:
-                player._start_time = asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
+                player._start_time = asyncio.get_running_loop().time()
                 voice_client.play(source, after=after_callback)
                 await self._update_presence(player.current, guild)
                 await self._maybe_start_spectrum(guild_id, guild)
@@ -439,7 +487,7 @@ class Music(commands.Cog, name="music"):
                         pass
         else:
             if player.autoplay and player.last_track:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 try:
                     related_query = f"ytsearch1:{player.last_track.title} similar"
                     ydl_opts = get_ytdl_opts()
@@ -593,9 +641,8 @@ class Music(commands.Cog, name="music"):
         def after_callback(error: Exception | None) -> None:
             if error:
                 print(f"Playback error: {error}")
-            asyncio.run_coroutine_threadsafe(
-                self._play_next(ctx.guild.id), self.bot.loop
-            )
+                traceback.print_exception(type(error), error, error.__traceback__)
+            self._schedule_play_next(ctx.guild.id)
 
         ctx.voice_client.play(source, after=after_callback)
         await self._update_presence(player.current, ctx.guild)
@@ -696,11 +743,10 @@ class Music(commands.Cog, name="music"):
         def after_callback(error: Exception | None) -> None:
             if error:
                 print(f"Playback error: {error}")
-            asyncio.run_coroutine_threadsafe(
-                self._play_next(ctx.guild.id), self.bot.loop
-            )
+                traceback.print_exception(type(error), error, error.__traceback__)
+            self._schedule_play_next(ctx.guild.id)
 
-        player._start_time = asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
+        player._start_time = asyncio.get_running_loop().time()
         ctx.voice_client.play(source, after=after_callback)
         await self._update_presence(track, ctx.guild)
         await self._maybe_start_spectrum(ctx.guild.id, ctx.guild)
@@ -867,8 +913,6 @@ class Music(commands.Cog, name="music"):
 
         try:
             voice_client.stop()
-            if voice_client.source:
-                voice_client.source.volume = original_volume
         except Exception:
             pass
 
@@ -1032,7 +1076,7 @@ class Music(commands.Cog, name="music"):
         ]
 
         tracks_found = []
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         ydl_opts = get_ytdl_opts()
         ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
 
@@ -1088,9 +1132,8 @@ class Music(commands.Cog, name="music"):
                 def after_callback(error: Exception | None) -> None:
                     if error:
                         print(f"Playback error: {error}")
-                    asyncio.run_coroutine_threadsafe(
-                        self._play_next(ctx.guild.id), self.bot.loop
-                    )
+                        traceback.print_exception(type(error), error, error.__traceback__)
+                    self._schedule_play_next(ctx.guild.id)
 
                 ctx.voice_client.play(source, after=after_callback)
                 await self._update_presence(player.current, ctx.guild)
@@ -1163,7 +1206,8 @@ class Music(commands.Cog, name="music"):
         def after_callback(error: Exception | None) -> None:
             if error:
                 print(f"Playback error: {error}")
-            asyncio.run_coroutine_threadsafe(self._play_next(ctx.guild.id), self.bot.loop)
+                traceback.print_exception(type(error), error, error.__traceback__)
+            self._schedule_play_next(ctx.guild.id)
 
         ctx.voice_client.play(source, after=after_callback)
         embed = self._make_embed("⏩ Seeked", 0x2ECC71, f"Seeked to **{position}**")
@@ -1184,10 +1228,10 @@ class Music(commands.Cog, name="music"):
             await ctx.send(embed=embed)
             return
 
-        ctx.voice_client.stop()
         player.queue.appendleft(player.current)
-        await self._play_next(ctx.guild.id)
-        embed = self._make_embed("🔄 Replaying", 0x9B59B6, f"Replaying: **{player.current.title if player.current else 'Unknown'}**")
+        player.current = None
+        ctx.voice_client.stop()
+        embed = self._make_embed("🔄 Replaying", 0x9B59B6, f"Replaying: **{player.queue[0].title if player.queue else 'Unknown'}**")
         await ctx.send(embed=embed)
 
     # ── autoplay ─────────────────────────────────────────────────────────────
@@ -1265,7 +1309,7 @@ class Music(commands.Cog, name="music"):
 
         msg = await ctx.send(embed=self._make_embed("🔍 Searching...", 0x9B59B6, f"Searching lyrics for: **{query}**"))
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             search_query = f"ytsearch1:{query} lyrics official"
             ydl_opts = get_ytdl_opts()

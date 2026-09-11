@@ -1,0 +1,25 @@
+# Environment & secrets
+.env
+.env.*
+*.env
+
+# Cookies
+cookies.txt
+
+# User data & caches
+data/
+__pycache__/
+*.pyc
+*.pyo
+
+# Guild list
+guilds.txt
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

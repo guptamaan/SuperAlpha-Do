@@ -1,6 +1,7 @@
 """
 SuperUser Do — A Linux-flavored all-in-one Discord bot.
-Prefix: "sudo " or "$ " or "@SuperUser Do " (with a trailing space, e.g. sudo ping)
+Prefix: "alpha " or "Alpha " (with a trailing space, e.g. alpha ping),
+plus the bot mention and slash (/) commands.
 """
 
 import asyncio
@@ -40,10 +41,9 @@ intents.presences = True
 
 # ── Bot ────────────────────────────────────────────────────────────────────────
 def get_prefix(bot: commands.Bot, message: discord.Message) -> list[str]:
-    base_prefixes = ["sudo ", "Sudo ", "SUDO ", "$ "]
-    content = message.content.lower()
-    for p in base_prefixes:
-        if content.startswith(p.lower()):
+    content = message.content
+    for p in ("alpha ", "Alpha "):
+        if content.startswith(p):
             return [p, f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
     return [f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
 
@@ -78,6 +78,10 @@ COGS = [
     "cogs.spectrum",
     "cogs.journal",
     "cogs.linux",
+    "cogs.automod",
+    "cogs.giveaways",
+    "cogs.shop",
+    "cogs.spam",
 ]
 
 
@@ -195,7 +199,7 @@ async def on_command(ctx: commands.Context) -> None:
 
 @bot.event
 async def on_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
-    prefix = str(getattr(ctx, "prefix", "sudo")).strip() or "sudo"
+    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
     embed_color = 0xE74C3C
 
     async def send_error(description: str, *, usage: str | None = None) -> None:

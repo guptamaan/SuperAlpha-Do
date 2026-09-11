@@ -12,8 +12,17 @@ import pathlib
 import discord
 from discord.ext import commands
 
+from cogs.automod import get_guild_config as _get_automod_config
+from cogs.automod import set_guild_config as _set_automod_config
+
 MODE_FILE = pathlib.Path("data/linux_mode.json")
 MODE_DIR = MODE_FILE.parent
+
+
+def _apply_automod_enabled(guild_id: int, enabled: bool) -> None:
+    config = _get_automod_config(guild_id)
+    config["enabled"] = enabled
+    _set_automod_config(guild_id, config)
 
 
 class LinuxDisabled(commands.CheckFailure):
@@ -58,6 +67,14 @@ LINUX_ALIASES: dict[str, tuple[str, ...]] = {
     # AFK
     "afk": ("suspend",),
     "afklist": ("who",),
+    # Auto-mod
+    "automod": ("apparmor",),
+    # Shop
+    "shop": ("apt",),
+    # Giveaways
+    "giveaway": ("raffle",),
+    # Spam chain game
+    "spam": ("yes",),
     # AI
     "ai": ("llama", "ollama"),
     "aiclear": ("historyclear",),
@@ -185,7 +202,6 @@ LINUX_ALIASES: dict[str, tuple[str, ...]] = {
     "embed": ("markdown",),
     "hash": ("cksum",),
     "poll": ("vote",),
-    "publicip": ("wanip",),
     "rand": ("urandom",),
     "remind": ("cron",),
     "say": ("write",),
@@ -206,6 +222,7 @@ LINUX_ALIASES: dict[str, tuple[str, ...]] = {
     "daily": ("payday",),
     "give": ("cp",),
     "leaderboard": ("sort",),
+    "levelchannel": ("notify",),
     "rank": ("finger",),
     "work": ("grind",),
     "xpsystem": ("chkconfig",),
@@ -271,19 +288,36 @@ class Linux(commands.Cog, name="linux"):
 
     @commands.command(name="enable")
     async def enable(self, ctx: commands.Context, feature: str = "linux") -> None:
-        """Enable a feature. Usage: sudo enable linux"""
-        if feature.strip().lower() != "linux":
+        """Enable a feature. Usage: alpha enable <linux|automod>"""
+        feature = feature.strip().lower()
+        if feature not in ("linux", "automod"):
             embed = self._make_embed(
                 "❌ Unknown Feature",
                 0xE74C3C,
-                f"Unknown feature: `{feature}`. Try `sudo enable linux`.",
+                f"Unknown feature: `{feature}`. Try `{ctx.prefix}enable linux` or `{ctx.prefix}enable automod`.",
             )
             await ctx.send(embed=embed)
             return
 
         if ctx.guild is None:
             embed = self._make_embed(
-                "❌ No Server", 0xE74C3C, "Linux mode can only be enabled in a server."
+                "❌ No Server", 0xE74C3C, f"{feature} mode can only be enabled in a server."
+            )
+            await ctx.send(embed=embed)
+            return
+
+        if feature == "automod":
+            _apply_automod_enabled(ctx.guild.id, True)
+            embed = discord.Embed(color=0x2ECC71)
+            embed.set_author(name="🛡️ Auto-Mod Enabled")
+            embed.description = (
+                "Word filtering, link blocking, and mention protection are now active in this server.\n"
+                f"Run `{ctx.prefix}automod` to review current settings."
+            )
+            embed.add_field(
+                name="Toggle off",
+                value=f"`{ctx.prefix}disable automod`",
+                inline=False,
             )
             await ctx.send(embed=embed)
             return
@@ -304,19 +338,33 @@ class Linux(commands.Cog, name="linux"):
 
     @commands.command(name="disable")
     async def disable(self, ctx: commands.Context, feature: str = "linux") -> None:
-        """Disable a feature. Usage: sudo disable linux"""
-        if feature.strip().lower() != "linux":
+        """Disable a feature. Usage: alpha disable <linux|automod>"""
+        feature = feature.strip().lower()
+        if feature not in ("linux", "automod"):
             embed = self._make_embed(
                 "❌ Unknown Feature",
                 0xE74C3C,
-                f"Unknown feature: `{feature}`. Try `sudo disable linux`.",
+                f"Unknown feature: `{feature}`. Try `{ctx.prefix}disable linux` or `{ctx.prefix}disable automod`.",
             )
             await ctx.send(embed=embed)
             return
 
         if ctx.guild is None:
             embed = self._make_embed(
-                "❌ No Server", 0xE74C3C, "Linux mode can only be disabled in a server."
+                "❌ No Server", 0xE74C3C, f"{feature} mode can only be disabled in a server."
+            )
+            await ctx.send(embed=embed)
+            return
+
+        if feature == "automod":
+            _apply_automod_enabled(ctx.guild.id, False)
+            embed = discord.Embed(color=0xE74C3C)
+            embed.set_author(name="🛡️ Auto-Mod Disabled")
+            embed.description = "Word filtering, link blocking, and mention protection have been deactivated."
+            embed.add_field(
+                name="Toggle on",
+                value=f"`{ctx.prefix}enable automod`",
+                inline=False,
             )
             await ctx.send(embed=embed)
             return
