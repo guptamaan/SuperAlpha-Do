@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 1. Clone the repository:
 ```
-git clone https://github.com/r4vex/SuperAlpha-Do.git
+git clone https://github.com/guptamaan/SuperAlpha-Do.git
 cd SuperAlpha-Do
 ```
 
