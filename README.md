@@ -4,6 +4,8 @@
 
 SuperAlpha Do is the open-source development repository for **SuperUser DO**, a multi-purpose Discord bot built on discord.py. This branch serves as the staging area for experimental features, new modules, and community-driven testing before code reaches the stable release.
 
+
+Support server - https://discord.gg/Z2NXkwkFK3
 ---
 
 ## Requirements
