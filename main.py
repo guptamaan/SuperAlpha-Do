@@ -82,6 +82,7 @@ COGS = [
     "cogs.giveaways",
     "cogs.shop",
     "cogs.spam",
+    "cogs.distro",
 ]
 
 
@@ -142,8 +143,8 @@ async def on_ready() -> None:
                 log.error("HTTP leave also failed: %s", e2)
 
     activity = discord.Activity(
-        type=discord.ActivityType.watching,
-        name="ZoundZ Nation on YouTube",
+        type=discord.ActivityType.playing,
+        name="Fixing my own bugs",
     )
     await bot.change_presence(status=discord.Status.idle, activity=activity)
     await bot.tree.sync()

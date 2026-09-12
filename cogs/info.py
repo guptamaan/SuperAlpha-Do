@@ -10,6 +10,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.system import INVITE_URL, SUPPORT_SERVER
+
 
 def _fmt_dt(dt: datetime.datetime | None) -> str:
     if dt is None:
@@ -275,7 +277,7 @@ class Info(commands.Cog, name="info"):
         embed.add_field(name="📝 Commands", value=str(len(self.bot.commands)), inline=True)
         embed.add_field(name="⚙️ Modules", value=str(len(self.bot.cogs)), inline=True)
 
-        embed.add_field(name="🔗 Links", value="[Invite Bot](#) | [Support Server](#)", inline=False)
+        embed.add_field(name="🔗 Links", value=f"[Invite Bot]({INVITE_URL}) | [Support Server]({SUPPORT_SERVER})", inline=False)
         embed.set_footer(text="sudo man | Sudo <command> for help")
         await ctx.send(embed=embed)
 

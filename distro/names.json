@@ -1,0 +1,254 @@
+{
+  "alpine": {
+    "name": "Alpine",
+    "tier": "hard",
+    "hints": [
+      "Tiny distribution built around musl libc and BusyBox",
+      "Uses the apk package manager, popular for containers"
+    ],
+    "aliases": ["alpine linux"]
+  },
+  "amogos": {
+    "name": "AmogOS",
+    "tier": "hard",
+    "hints": [
+      "Meme operating system with a crewmate vibe",
+      "Not the distro you're looking for, but very sus"
+    ],
+    "aliases": ["amog os", "amogus", "amogus os", "amogos linux"]
+  },
+  "android": {
+    "name": "Android",
+    "tier": "hard",
+    "hints": [
+      "Made by Google, primarily for phones",
+      "Runs on the Linux kernel"
+    ],
+    "aliases": ["android os"]
+  },
+  "arch": {
+    "name": "Arch Linux",
+    "tier": "easy",
+    "hints": [
+      "Uses the pacman package manager",
+      "Rolling release with a DIY, KISS philosophy"
+    ],
+    "aliases": ["archlinux", "arch os", "arch linux"]
+  },
+  "blackarch": {
+    "name": "BlackArch",
+    "tier": "hard",
+    "hints": [
+      "A security-focused distro built on Arch",
+      "Ships with 2,800+ pentesting and hacking tools"
+    ],
+    "aliases": ["blackarch os", "blackarch linux"]
+  },
+  "centos": {
+    "name": "CentOS",
+    "tier": "easy",
+    "hints": [
+      "Community rebuild of Red Hat Enterprise Linux",
+      "Uses the dnf package manager"
+    ],
+    "aliases": ["centos os", "centos linux"]
+  },
+  "debian": {
+    "name": "Debian",
+    "tier": "easy",
+    "hints": [
+      "Uses the apt package manager",
+      "The parent of Ubuntu and many other distros"
+    ],
+    "aliases": ["debian os", "debian linux", "debianos"]
+  },
+  "deepin": {
+    "name": "Deepin",
+    "tier": "medium",
+    "hints": [
+      "Developed in China",
+      "Known for the beautiful DDE desktop environment"
+    ],
+    "aliases": ["deepin os", "deepin linux"]
+  },
+  "elementary": {
+    "name": "elementary OS",
+    "tier": "medium",
+    "hints": [
+      "macOS-inspired distro based on Ubuntu",
+      "Ships the Pantheon desktop"
+    ],
+    "aliases": ["elementary os", "elementaryos", "elementary linux"]
+  },
+  "fedora": {
+    "name": "Fedora",
+    "tier": "easy",
+    "hints": [
+      "Sponsored by Red Hat",
+      "Uses the dnf package manager"
+    ],
+    "aliases": ["fedora os", "fedora linux"]
+  },
+  "garuda": {
+    "name": "Garuda Linux",
+    "tier": "medium",
+    "hints": [
+      "An Arch-based distro tuned for gaming",
+      "Known for the Linux-zen kernel and preinstalled gaming tools"
+    ],
+    "aliases": ["garuda os", "garudaos", "garuda linux"]
+  },
+  "gentoo": {
+    "name": "Gentoo",
+    "tier": "hard",
+    "hints": [
+      "Packages are compiled from source on your machine",
+      "Uses the Portage package manager via the emerge command"
+    ],
+    "aliases": ["gentoo os", "gentoo linux", "gentoolinux"]
+  },
+  "kali": {
+    "name": "Kali Linux",
+    "tier": "medium",
+    "hints": [
+      "Built for penetration testing and security work",
+      "Based on Debian, bundles tools like Metasploit and Nmap"
+    ],
+    "aliases": ["kali os", "kali linux"]
+  },
+  "manjaro": {
+    "name": "Manjaro",
+    "tier": "medium",
+    "hints": [
+      "Beginner-friendly distro based on Arch",
+      "Uses the pacman package manager"
+    ],
+    "aliases": ["manjaro os", "manjaro linux"]
+  },
+  "mint": {
+    "name": "Linux Mint",
+    "tier": "easy",
+    "hints": [
+      "Very beginner-friendly, based on Ubuntu",
+      "Ships the Cinnamon desktop"
+    ],
+    "aliases": ["mint os", "mint linux", "linuxmint"]
+  },
+  "mx": {
+    "name": "MX Linux",
+    "tier": "medium",
+    "hints": [
+      "Based on Debian, cooperates with antiX",
+      "Comes with MX Tools for easy configuration"
+    ],
+    "aliases": ["mx os", "mx linux", "mxlinux"]
+  },
+  "nix": {
+    "name": "NixOS",
+    "tier": "hard",
+    "hints": [
+      "Setup is declared in a config file, not tweaked by hand",
+      "Uses the nix package manager for reproducible builds"
+    ],
+    "aliases": ["nixos", "nix os", "nix linux"]
+  },
+  "nobara": {
+    "name": "Nobara",
+    "tier": "medium",
+    "hints": [
+      "Fedora-based gaming distro",
+      "Created by GloriousEggroll with gaming patches"
+    ],
+    "aliases": ["nobara os", "nobara linux"]
+  },
+  "nyarch": {
+    "name": "Nyarch Linux",
+    "tier": "hard",
+    "hints": [
+      "A tongue-in-cheek parody distro with an art-nouveau flair",
+      "Its lush, floral branding stands out in the Linux world"
+    ],
+    "aliases": ["nyarch os", "nyarchos", "nyarch linux"]
+  },
+  "opensuse": {
+    "name": "openSUSE",
+    "tier": "medium",
+    "hints": [
+      "Home of the YaST administration tool",
+      "Uses the zypper package manager"
+    ],
+    "aliases": ["opensuse os", "opensuse linux", "suse"]
+  },
+  "parrot": {
+    "name": "Parrot OS",
+    "tier": "medium",
+    "hints": [
+      "Security and privacy focused, based on Debian",
+      "Bundles anonymity tools and forensic software"
+    ],
+    "aliases": ["parrot os", "parrotos", "parrot linux"]
+  },
+  "pop": {
+    "name": "Pop!_OS",
+    "tier": "medium",
+    "hints": [
+      "Made by System76, tuned for gaming and creators",
+      "Based on Ubuntu, features auto-tiling"
+    ],
+    "aliases": ["popos", "pop os", "pop_os", "pop linux"]
+  },
+  "red hat": {
+    "name": "Red Hat Enterprise Linux",
+    "tier": "medium",
+    "hints": [
+      "Enterprise operating system from the makers of Fedora",
+      "Uses the dnf package manager; subscription-based"
+    ],
+    "aliases": ["redhat", "rhel", "rhel os", "rhel linux", "red hat os", "red hat linux", "redhat os", "redhat linux"]
+  },
+  "solus": {
+    "name": "Solus",
+    "tier": "medium",
+    "hints": [
+      "Independent distro, not based on Debian or Arch",
+      "Uses the eopkg package manager"
+    ],
+    "aliases": ["solus os", "solus linux"]
+  },
+  "steam": {
+    "name": "SteamOS",
+    "tier": "hard",
+    "hints": [
+      "Made by Valve to power a handheld gaming device",
+      "Based on Arch Linux with gaming-first defaults"
+    ],
+    "aliases": ["steamos", "steam os", "steam os 3", "steam linux"]
+  },
+  "ubuntu": {
+    "name": "Ubuntu",
+    "tier": "easy",
+    "hints": [
+      "Based on Debian, hugely popular",
+      "Uses the apt package manager"
+    ],
+    "aliases": ["ubuntu os", "ubuntu linux", "ubuntuos"]
+  },
+  "void": {
+    "name": "Void Linux",
+    "tier": "hard",
+    "hints": [
+      "Independent distro with its own package manager",
+      "Uses the xbps package manager and runit init"
+    ],
+    "aliases": ["void os", "voidlinux", "void linux"]
+  },
+  "zorin": {
+    "name": "Zorin OS",
+    "tier": "medium",
+    "hints": [
+      "Aimed at Windows switchers, based on Ubuntu",
+      "Known for a clean, familiar desktop"
+    ],
+    "aliases": ["zorin os", "zorinos", "zorin linux"]
+  }
+}

@@ -15,6 +15,7 @@ SuperAlpha Do is the open-source development repository for **SuperUser DO**, a 
 - py-cord or compatible fork (if extending)
 - Groq API key (for AI commands) -- https://console.groq.com/keys
 - FFmpeg (for music playback)
+- Davey (for joining voice chats and playing music)
 
 All Python dependencies are listed in `requirements.txt` and can be installed with:
 
@@ -28,7 +29,7 @@ pip install -r requirements.txt
 
 1. Clone the repository:
 ```
-git clone https://github.com/r4vex/SuperAlpha-Do.git
+git clone https://github.com/guptamaan/SuperAlpha-Do.git
 cd SuperAlpha-Do
 ```
 
@@ -80,6 +81,7 @@ Two optional features are disabled by default and must be enabled per server:
 |----------|------------------------------|------------------------------|
 | Linux    | `alpha enable linux`         | `alpha disable linux`        |
 | Automod  | `alpha enable automod`       | `alpha disable automod`      |
+| Distro   | `alpha enable distro`        | `alpha disable distro`       |
 
 Once enabled, the corresponding commands and aliases become available to all users in that server.
 
@@ -131,6 +133,11 @@ Spend SP on custom roles with user-managed name and color. Admin-configurable it
 
 ### Spam Chain
 A cooperative chat game where members take turns sending the same word or emoji to build a streak. Sending it twice in a row or sending something else breaks the chain.
+
+### Distro Guess
+A guessing game where the bot randomly posts a Linux distro image (from the `distro/` folder) into a channel. The first member to correctly name the distro wins XP and SP, and the image is removed. Drop images into `distro/` named after the distro with a `.png` extension and without `os`/`linux` in the name (e.g. `arch.png`, `ubuntu.png`). Matching picks up the filename the bot is showing and is case-insensitive; guesses with `os`, `linux`, or `os linux` appended (e.g. `arch os`, `Arch Linux`) are all accepted.
+
+Each distro can have an entry in `distro/names.json` giving it a difficulty tier (`easy` / `medium` / `hard`) and up to two hints (e.g. package manager, base system, or origin). Base rewards scale with tier: Easy 15 XP + 3 SP, Medium 25 XP + 5 SP, Hard 45 XP + 10 SP. Rounds drop a hint 45 seconds and 150 seconds after spawning, each one cutting the reward by 40%; unanswered rounds auto-expire after 180 seconds and reveal the answer. Wrong guesses are throttled to one per ~2.5 seconds per member to stop guess-spamming. Disabled by default -- enable with `alpha enable distro`. Spawn a round manually with `alpha distro spawn`.
 
 ### Welcome / Logging
 Welcome and goodbye messages, audit log forwarding to a designated channel.

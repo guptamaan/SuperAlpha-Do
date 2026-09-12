@@ -20,6 +20,7 @@ import cogs.journal as _journal
 START_TIME = time.time()
 
 INVITE_URL = "https://discord.com/oauth2/authorize?client_id=1472581750810083339"
+SUPPORT_SERVER = "https://discord.gg/Z2NXkwkFK3"
 OWNER_HANDLE = "@r4ve_x"
 
 
@@ -212,6 +213,12 @@ class System(commands.Cog, name="system"):
             except Exception:
                 pass
 
+            embed.add_field(
+                        name="SUPPORT",
+                        value=f"Join the support server: {SUPPORT_SERVER}",
+                        inline=False,
+                    )
+
             embed.set_footer(text=f"{prefix}man {cmd.qualified_name}")
             await ctx.send(embed=embed)
             return
@@ -228,6 +235,11 @@ class System(commands.Cog, name="system"):
             if cmds:
                 value = "  ".join(f"`{c.name}`" for c in cmds)
                 embed.add_field(name=f"[{cog_name.upper()}]", value=value, inline=False)
+        embed.add_field(
+            name="🛟 Support",
+            value=f"Need help? Join the support server: {SUPPORT_SERVER}",
+            inline=False,
+        )
         embed.set_footer(text=f"{prefix}man <command> for detailed usage")
         await ctx.send(embed=embed)
 
