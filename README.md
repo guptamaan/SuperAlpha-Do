@@ -68,6 +68,17 @@ Per-guild configuration is stored as JSON under the `data/` directory (gitignore
 
 ---
 
+## How do we name updates?
+The updates are named using the following format - year.month.date
+If the update is the first update of the day then it is simply the year.month.date and the succeeding updates have letter paired with the date in alphabetical order
+E.g. For the first update of the date 1/1/2027 the update will be - 27.1.1
+And for the second update at same date will be 27.1.1A
+For third - 27.1.1B and so on
+
+Mostly the bot is only updated thrice a day, while the stable branch updates once or twice a *month*.
+
+---
+
 ## Usage
 
 **Prefix:** `alpha ` or `Alpha ` (with a trailing space).
