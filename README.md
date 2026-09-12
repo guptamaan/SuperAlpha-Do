@@ -141,6 +141,8 @@ A guessing game where the bot randomly posts a Linux distro image (from the `dis
 
 Each distro can have an entry in `distro/names.json` giving it a difficulty tier (`easy` / `medium` / `hard`) and up to two hints (e.g. package manager, base system, or origin). Base rewards scale with tier: Easy 15 XP + 3 SP, Medium 25 XP + 5 SP, Hard 45 XP + 10 SP. Rounds drop a hint 45 seconds and 150 seconds after spawning, each one cutting the reward by 40%; unanswered rounds auto-expire after 180 seconds and reveal the answer. Wrong guesses are throttled to one per ~2.5 seconds per member to stop guess-spamming. Disabled by default -- enable with `alpha enable distro`. Spawn a round manually with `alpha distro spawn`.
 
+Admins can pin round spawns to a specific channel with `alpha distro channel #channel`, view the current target with `alpha distro channel`, and revert to random channels with `alpha distro channel clear`.
+
 ### Welcome / Logging
 Welcome and goodbye messages, audit log forwarding to a designated channel.
 

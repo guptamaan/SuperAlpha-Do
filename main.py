@@ -83,6 +83,7 @@ COGS = [
     "cogs.shop",
     "cogs.spam",
     "cogs.distro",
+    "cogs.steal",
 ]
 
 

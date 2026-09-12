@@ -227,7 +227,7 @@ class XP(commands.Cog, name="xp"):
             try:
                 embed = discord.Embed(
                     color=0xF1C40F,
-                    title=f"🎉 Level Up!",
+                    title="🎉 Level Up!",
                     description=f"**{message.author.mention}** reached **Level {data['level']}**!"
                 )
                 embed.add_field(name="XP", value=f"{xp_gain} xp earned", inline=True)

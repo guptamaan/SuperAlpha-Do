@@ -14,7 +14,7 @@ When enabled, the bot also auto-spawns rounds into random channels on a
 random 20-40 minute timer.
 
 Data stored in data/distro/ (enabled guilds + stats).
-Commands: distro, distro spawn, distro end, distro stats
+Commands: distro, distro spawn, distro end, distro stats, distro channel [channel|clear]
 """
 
 import asyncio
@@ -86,6 +86,28 @@ def set_enabled(guild_id: int, enabled: bool) -> None:
     else:
         guilds.discard(guild_id)
     data["guilds"] = sorted(guilds)
+    _save_json(ENABLED_FILE, data)
+
+
+# ── Dedicated spawn channel ───────────────────────────────────────────────────
+def get_spawn_channel(guild_id: int | None) -> int | None:
+    """The configured text channel for auto-spawns in a guild, if any."""
+    if not guild_id:
+        return None
+    channels = _load_json(ENABLED_FILE).get("channels", {})
+    raw = channels.get(str(guild_id))
+    return int(raw) if raw is not None else None
+
+
+def set_spawn_channel(guild_id: int, channel_id: int | None) -> None:
+    """Pin (or clear) the dedicated spawn channel for a guild."""
+    data = _load_json(ENABLED_FILE)
+    channels = {str(k): v for k, v in data.get("channels", {}).items()}
+    if channel_id is None:
+        channels.pop(str(guild_id), None)
+    else:
+        channels[str(guild_id)] = channel_id
+    data["channels"] = channels
     _save_json(ENABLED_FILE, data)
 
 
@@ -228,16 +250,26 @@ class Distro(commands.Cog, name="distro"):
             guild = self.bot.get_guild(guild_id)
             if not guild:
                 continue
-            candidates = [
-                c for c in guild.text_channels
-                if self.active.get(c.id) is None
-                and c.permissions_for(guild.me).send_messages
-                and c.permissions_for(guild.me).attach_files
-                and not c.is_nsfw()
-            ]
-            if not candidates:
+
+            def eligible(ch: discord.TextChannel) -> bool:
+                return (
+                    self.active.get(ch.id) is None
+                    and not ch.is_nsfw()
+                    and ch.permissions_for(guild.me).send_messages
+                    and ch.permissions_for(guild.me).attach_files
+                )
+
+            host = None
+            pinned = self.bot.get_channel(get_spawn_channel(guild_id))
+            if isinstance(pinned, discord.TextChannel) and pinned.guild is guild and eligible(pinned):
+                host = pinned
+            if host is None:
+                candidates = [c for c in guild.text_channels if eligible(c)]
+                if candidates:
+                    host = random.choice(candidates)
+            if host is None:
                 continue
-            await self._spawn(random.choice(candidates))
+            await self._spawn(host)
             return
 
     # ── Round lifecycle ──────────────────────────────────────────────────────
@@ -452,11 +484,13 @@ class Distro(commands.Cog, name="distro"):
             await self._end_cmd(ctx)
         elif action in ["stats", "score", "top"]:
             await self._stats_cmd(ctx)
+        elif action in ["channel", "chan", "host"]:
+            await self._channel_cmd(ctx, rest)
         else:
             embed = self._make_embed(
                 "❌ Invalid Action", 0xE74C3C,
                 "Usage: `alpha distro` (status) · `alpha distro spawn`\n"
-                "`alpha distro end` · `alpha distro stats`",
+                "`alpha distro end` · `alpha distro stats` · `alpha distro channel [channel|clear]`",
             )
             await ctx.send(embed=embed)
 
@@ -466,12 +500,18 @@ class Distro(commands.Cog, name="distro"):
         round_active = self.active.get(ctx.channel.id) is not None
         images = len(_image_files())
         stats = _guild_stats(guild.id)
+        pinned = self.bot.get_channel(get_spawn_channel(guild.id))
 
         embed = discord.Embed(color=0x9B59B6)
         embed.set_author(name="🐧 Distro Game Status")
         embed.add_field(name="Enabled", value="Yes" if enabled else "No", inline=True)
         embed.add_field(name="Round Here", value="Active" if round_active else "None", inline=True)
         embed.add_field(name="Images Available", value=str(images), inline=True)
+        embed.add_field(
+            name="Spawn Channel",
+            value=pinned.mention if isinstance(pinned, discord.TextChannel) else "Random",
+            inline=True,
+        )
         embed.add_field(name="Rounds Spawned", value=str(stats.get("spawns", 0)), inline=True)
         embed.add_field(name="Rounds Solved", value=str(stats.get("solved", 0)), inline=True)
         if not enabled:
@@ -511,6 +551,63 @@ class Distro(commands.Cog, name="distro"):
         except Exception:
             pass
         embed = self._make_embed("🛑 Round Ended", 0x95A5A6, "The distro round was ended by a moderator.")
+        await ctx.send(embed=embed)
+
+    async def _channel_cmd(self, ctx: commands.Context, rest: str | None) -> None:
+        if not (ctx.author.guild_permissions.administrator or ctx.author.id == ctx.guild.owner_id):
+            embed = self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission.")
+            await ctx.send(embed=embed)
+            return
+
+        if rest is None:
+            pinned = self.bot.get_channel(get_spawn_channel(ctx.guild.id))
+            value = pinned.mention if isinstance(pinned, discord.TextChannel) else "Any random channel"
+            embed = self._make_embed(
+                "📌 Distro Spawn Channel", 0x9B59B6,
+                f"Auto-spawns currently go to: **{value}**.",
+            )
+            embed.set_footer(text=f"`{ctx.prefix}distro channel #channel` to pin · `distro channel clear` to randomise")
+            await ctx.send(embed=embed)
+            return
+
+        rest = rest.strip()
+        if rest.lower() in ("clear", "none", "off", "reset", "remove"):
+            set_spawn_channel(ctx.guild.id, None)
+            embed = self._make_embed(
+                "📌 Distro Spawn Channel", 0x95A5A6,
+                "Auto-spawns will now go to a **random** eligible channel.",
+            )
+            await ctx.send(embed=embed)
+            return
+
+        target = None
+        if rest.startswith("<#") and rest.endswith(">"):
+            try:
+                target = ctx.guild.get_channel(int(rest[2:-1]))
+            except ValueError:
+                target = None
+        elif rest.isdigit():
+            target = ctx.guild.get_channel(int(rest))
+        if target is None:
+            target = discord.utils.get(ctx.guild.text_channels, name=rest.lstrip("#"))
+
+        if not isinstance(target, discord.TextChannel):
+            embed = self._make_embed(
+                "❌ Cannot Pin", 0xE74C3C,
+                f"I couldn't find a text channel matching `{rest}`.\nUsage: `{ctx.prefix}distro channel #channel` or `distro channel clear`.",
+            )
+            await ctx.send(embed=embed)
+            return
+        if target.is_nsfw():
+            embed = self._make_embed("❌ Cannot Pin", 0xE74C3C, "NSFW channels can't host distro rounds.")
+            await ctx.send(embed=embed)
+            return
+
+        set_spawn_channel(ctx.guild.id, target.id)
+        embed = self._make_embed(
+            "📌 Distro Spawn Channel", 0x2ECC71,
+            f"Auto-spawned rounds will now appear in {target.mention}.",
+        )
         await ctx.send(embed=embed)
 
     async def _stats_cmd(self, ctx: commands.Context) -> None:

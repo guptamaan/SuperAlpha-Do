@@ -78,6 +78,8 @@ LINUX_ALIASES: dict[str, tuple[str, ...]] = {
     "spam": ("yes",),
     # Distro guessing game
     "distro": ("lsb_release",),
+    # Steal emoji
+    "steal": ("cp",),
     # AI
     "ai": ("llama", "ollama"),
     "aiclear": ("historyclear",),

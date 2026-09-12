@@ -44,6 +44,15 @@
     ],
     "aliases": ["blackarch os", "blackarch linux"]
   },
+  "cachy": {
+    "name": "CachyOS",
+    "tier": "medium",
+    "hints": [
+      "An Arch-based distro built around performance tuning",
+      "Ships optimized kernels and its own custom repositories"
+    ],
+    "aliases": ["cachy os", "cachyos", "cachy linux"]
+  },
   "centos": {
     "name": "CentOS",
     "tier": "easy",
@@ -116,6 +125,15 @@
     ],
     "aliases": ["kali os", "kali linux"]
   },
+  "linux lite": {
+    "name": "Linux Lite",
+    "tier": "easy",
+    "hints": [
+      "Beginner-friendly and lightweight, based on Ubuntu",
+      "Ships the XFCE desktop for older machines"
+    ],
+    "aliases": ["linuxlite", "lite", "linux lite os", "linux lite linux"]
+  },
   "manjaro": {
     "name": "Manjaro",
     "tier": "medium",
@@ -169,6 +187,15 @@
       "Its lush, floral branding stands out in the Linux world"
     ],
     "aliases": ["nyarch os", "nyarchos", "nyarch linux"]
+  },
+  "omarchy": {
+    "name": "Omarchy",
+    "tier": "hard",
+    "hints": [
+      "An immutable distro built on top of NixOS",
+      "Made popular by a Linux YouTube channel"
+    ],
+    "aliases": ["omarchy os", "omarch", "omarchy linux"]
   },
   "opensuse": {
     "name": "openSUSE",

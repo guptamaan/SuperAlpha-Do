@@ -588,6 +588,7 @@ class Utility(commands.Cog, name="utility"):
             )
             embed.add_field(name="☁️ Condition", value=f"**{desc}**", inline=True)
             embed.add_field(name="🌡️ Temperature", value=f"**{temp_c}°C** / {temp_f}°F", inline=True)
+            embed.add_field(name="🌡️ Feels Like", value=f"**{feels}°C**", inline=True)
             embed.add_field(name="💧 Humidity", value=f"**{humid}%**", inline=True)
             embed.add_field(name="🌬️ Wind", value=f"**{wind} km/h**", inline=True)
             await interaction.response.send_message(embed=embed)

@@ -532,7 +532,7 @@ class Fun(commands.Cog, name="fun"):
         embed.set_author(name="🤔 Would You Rather?", icon_url=None)
         embed.add_field(name="Option 1", value=f"**{opt1}**", inline=False)
         embed.add_field(name="Option 2", value=f"**{opt2}**", inline=False)
-        embed.set_footer(text=f"Answer with 👍 for option 1 or 👎 for option 2")
+        embed.set_footer(text="Answer with 👍 for option 1 or 👎 for option 2")
         msg = await ctx.send(embed=embed)
         await msg.add_reaction("👍")
         await msg.add_reaction("👎")
