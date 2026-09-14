@@ -481,7 +481,7 @@ class System(commands.Cog, name="system"):
     @commands.command(name="latency", aliases=["lag", "netstat"])
     async def latency(self, ctx: commands.Context) -> None:
         """Show WebSocket latency. Usage: sudo latency"""
-        ws = round(self.bot.latency * 1000)
+        ws = self._ws_ms()
         bar_filled = min(int(ws / 10), 20)
         bar = "█" * bar_filled + "░" * (20 - bar_filled)
         quality = "excellent" if ws < 80 else "good" if ws < 150 else "poor"
@@ -642,7 +642,7 @@ class System(commands.Cog, name="system"):
         """Display bot system status. Usage: sudo status"""
         guilds  = len(self.bot.guilds)
         users   = sum(g.member_count or 0 for g in self.bot.guilds)
-        latency = round(self.bot.latency * 1000)
+        latency = self._ws_ms()
         elapsed = int(time.time() - START_TIME)
         days, rem = divmod(elapsed, 86400)
         hours, rem = divmod(rem, 3600)
@@ -916,7 +916,7 @@ class System(commands.Cog, name="system"):
         before = _t.monotonic()
         await interaction.response.send_message("```bash\n$ sudo ping discord.com\nPinging…\n```")
         rtt = round((_t.monotonic() - before) * 1000)
-        ws = round(self.bot.latency * 1000)
+        ws = self._ws_ms()
         await interaction.edit_original_response(content=(
             f"```bash\n$ sudo ping discord.com\n"
             f"PING discord.com: 64 bytes\n"
@@ -941,7 +941,7 @@ class System(commands.Cog, name="system"):
         """Slash command version of status."""
         guilds = len(self.bot.guilds)
         users = sum(g.member_count or 0 for g in self.bot.guilds)
-        latency = round(self.bot.latency * 1000)
+        latency = self._ws_ms()
         elapsed = int(time.time() - START_TIME)
         days, rem = divmod(elapsed, 86400)
         hours, rem = divmod(rem, 3600)
