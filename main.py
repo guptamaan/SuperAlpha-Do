@@ -84,6 +84,7 @@ COGS = [
     "cogs.spam",
     "cogs.distro",
     "cogs.steal",
+    "cogs.suggestions",
 ]
 
 

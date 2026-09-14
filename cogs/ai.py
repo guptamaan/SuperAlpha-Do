@@ -1,7 +1,7 @@
 """
 cogs/ai.py — AI chat and generation commands.
 Uses the official OpenAI SDK (Chat Completions API) against Groq.
-Per-user conversation memory stored in data/ai_memory/.
+Per-user conversation memory stored in data/ai_memory.db.
 Commands: ai, imagine, summarize, explain, code, aitranslate, aihistory, aiclear
 """
 
@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import pathlib
+import sqlite3
 import traceback
 
 import discord
@@ -18,6 +19,7 @@ from openai import AsyncOpenAI
 log = logging.getLogger("SuperUser Do")
 
 MEMORY_DIR = pathlib.Path("data/ai_memory")
+DATABASE_FILE = "data/ai_memory.db"
 MEMORY_MAX = 20
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
@@ -27,26 +29,79 @@ DEFAULT_MODEL = "openai/gpt-oss-20b"
 EMBED_DESC_MAX = 4096
 EMBED_FIELD_MAX = 1024
 
+_db_conn: sqlite3.Connection | None = None
 
-def _load_history(user_id: int) -> list[dict]:
-    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-    path = MEMORY_DIR / f"{user_id}.json"
-    if path.exists():
+
+def get_db() -> sqlite3.Connection:
+    global _db_conn
+    if _db_conn is None:
+        pathlib.Path("data").mkdir(exist_ok=True)
+        _db_conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+        _db_conn.row_factory = sqlite3.Row
+        _db_conn.execute("PRAGMA journal_mode=WAL")
+    return _db_conn
+
+
+def init_db() -> None:
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS memory (
+            user_id INTEGER NOT NULL,
+            seq     INTEGER NOT NULL,
+            role    TEXT NOT NULL,
+            content TEXT NOT NULL,
+            PRIMARY KEY (user_id, seq)
+        )
+    """)
+    conn.commit()
+    _migrate_legacy_json()
+
+
+def _migrate_legacy_json() -> None:
+    """One-time import of old per-user memory JSON files into SQLite."""
+    if not MEMORY_DIR.exists():
+        return
+    existing = get_db().execute("SELECT COUNT(*) AS n FROM memory").fetchone()["n"]
+    if existing:
+        return
+    for path in MEMORY_DIR.glob("*.json"):
+        try:
+            user_id = int(path.stem)
+        except ValueError:
+            continue
         try:
             with open(path) as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                return data
+                history = json.load(f)
         except (json.JSONDecodeError, OSError):
-            return []
-    return []
+            continue
+        if not isinstance(history, list):
+            continue
+        _save_history(user_id, history[-MEMORY_MAX:])
+
+
+def _load_history(user_id: int) -> list[dict]:
+    rows = get_db().execute(
+        "SELECT role, content FROM memory WHERE user_id = ? ORDER BY seq ASC",
+        (user_id,),
+    ).fetchall()
+    return [
+        {"role": r["role"], "content": r["content"]}
+        for r in rows[-MEMORY_MAX:]
+    ]
 
 
 def _save_history(user_id: int, history: list[dict]) -> None:
-    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-    path = MEMORY_DIR / f"{user_id}.json"
-    with open(path, "w") as f:
-        json.dump(history, f, indent=2)
+    conn = get_db()
+    conn.execute("DELETE FROM memory WHERE user_id = ?", (user_id,))
+    for seq, msg in enumerate(history):
+        conn.execute(
+            "INSERT INTO memory (user_id, seq, role, content) VALUES (?, ?, ?, ?)",
+            (user_id, seq, msg.get("role", "user"), str(msg.get("content", ""))),
+        )
+    conn.commit()
+
+
+init_db()
 
 
 def _trim_history(history: list[dict]) -> list[dict]:

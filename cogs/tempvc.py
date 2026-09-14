@@ -1,6 +1,7 @@
 """
 cogs/tempvc.py — Temporary voice channels.
-Creates private VCs on demand with owner controls.
+Creates private VCs on demand with owner controls. Bot-created VCs are
+auto-deleted (removing everyone still inside) when their owner leaves.
 """
 
 import asyncio
@@ -49,19 +50,20 @@ class TempVCManager(commands.Cog, name="tempvc"):
         if member.bot:
             return
 
+        # Delete bot-created temp VCs when their owner leaves the channel.
         if before.channel and before.channel != after.channel:
             vc = self._get_vc(before.channel.id)
-            if vc:
+            if vc and self._is_owner(vc, member.id):
                 try:
                     await asyncio.sleep(0.5)
                     channel = member.guild.get_channel(before.channel.id)
-                    if channel and len(channel.members) == 0:
+                    if channel:
                         try:
                             await channel.delete()
                         except discord.NotFound:
                             pass
-                        if vc.channel_id in self._vcs:
-                            del self._vcs[vc.channel_id]
+                    if vc.channel_id in self._vcs:
+                        del self._vcs[vc.channel_id]
                 except Exception:
                     pass
 

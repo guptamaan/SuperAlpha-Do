@@ -1,13 +1,14 @@
 """
 cogs/automod.py — Auto-moderation.
 Word filter, link whitelist, mass-mention detection, and a strike system.
-Per-guild config stored in data/automod/config.json; strikes in data/automod/strikes.json.
+Per-guild config stored in data/automod/config.json; strikes in data/automod.db.
 Commands: automod, automod word, automod allow, automod mentions, automod action, automod alert
 """
 
 import json
 import os
 import re
+import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -19,6 +20,7 @@ from cogs.checks import perms_or_developer
 CONFIG_DIR = "data/automod"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 STRIKES_FILE = os.path.join(CONFIG_DIR, "strikes.json")
+DATABASE_FILE = "data/automod.db"
 
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
@@ -69,15 +71,89 @@ def set_guild_config(guild_id: int, data: dict) -> None:
     _save_json(CONFIG_FILE, config)
 
 
-def get_strikes(guild_id: int) -> dict:
+_db_conn: sqlite3.Connection | None = None
+
+
+def get_db() -> sqlite3.Connection:
+    global _db_conn
+    if _db_conn is None:
+        os.makedirs("data", exist_ok=True)
+        _db_conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+        _db_conn.row_factory = sqlite3.Row
+        _db_conn.execute("PRAGMA journal_mode=WAL")
+    return _db_conn
+
+
+def init_db() -> None:
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS strikes (
+            guild_id INTEGER NOT NULL,
+            user_id  INTEGER NOT NULL,
+            count    INTEGER NOT NULL DEFAULT 0,
+            last     REAL    NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )
+    """)
+    conn.commit()
+    _migrate_legacy_strikes()
+
+
+def _migrate_legacy_strikes() -> None:
+    """One-time import of the old strikes.json into SQLite."""
+    count = get_db().execute("SELECT COUNT(*) AS n FROM strikes").fetchone()["n"]
+    if count or not os.path.exists(STRIKES_FILE):
+        return
     strikes = _load_json(STRIKES_FILE)
-    return strikes.get(str(guild_id)) or {}
+    for guild_str, users in strikes.items():
+        try:
+            guild_id = int(guild_str)
+        except ValueError:
+            continue
+        if not isinstance(users, dict):
+            continue
+        for uid_str, strike in users.items():
+            if not isinstance(strike, dict):
+                continue
+            try:
+                user_id = int(uid_str)
+            except ValueError:
+                continue
+            get_db().execute(
+                "INSERT INTO strikes (guild_id, user_id, count, last) VALUES (?, ?, ?, ?)",
+                (guild_id, user_id, int(strike.get("count") or 0), float(strike.get("last") or 0)),
+            )
+    get_db().commit()
+
+
+def get_strikes(guild_id: int) -> dict:
+    rows = get_db().execute(
+        "SELECT user_id, count, last FROM strikes WHERE guild_id = ?", (guild_id,)
+    ).fetchall()
+    return {
+        str(r["user_id"]): {"count": r["count"], "last": r["last"]}
+        for r in rows
+    }
 
 
 def set_strikes(guild_id: int, data: dict) -> None:
-    strikes = _load_json(STRIKES_FILE)
-    strikes[str(guild_id)] = data
-    _save_json(STRIKES_FILE, strikes)
+    conn = get_db()
+    conn.execute("DELETE FROM strikes WHERE guild_id = ?", (guild_id,))
+    for uid_str, strike in data.items():
+        if not isinstance(strike, dict):
+            continue
+        try:
+            user_id = int(uid_str)
+        except (ValueError, TypeError):
+            continue
+        conn.execute(
+            "INSERT INTO strikes (guild_id, user_id, count, last) VALUES (?, ?, ?, ?)",
+            (guild_id, user_id, int(strike.get("count") or 0), float(strike.get("last") or 0)),
+        )
+    conn.commit()
+
+
+init_db()
 
 
 def _domain(url: str) -> str:

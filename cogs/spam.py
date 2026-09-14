@@ -4,22 +4,54 @@ In a configured channel, members take turns sending a single word/emoji.
 The same person may not send twice in a row; anyone who sends the target
 twice consecutively or sends anything else breaks (resets) the streak and
 gets a wilted-rose shaming message.
-Data stored in data/spam/config.json.
+Data stored in data/spam.db.
 Commands: spam, spam channel, spam word, spam start, spam stop, spam reset
 """
 
 import json
 import os
+import sqlite3
 
 import discord
 from discord.ext import commands
 
 DATA_DIR = "data/spam"
 CONFIG_FILE = os.path.join(DATA_DIR, "spam.json")
+DATABASE_FILE = "data/spam.db"
 
 WILTED_ROSE = "🥀"
 ROSE = "🌹"
 BROKEN_HEART = "💔"
+
+_db_conn: sqlite3.Connection | None = None
+
+
+def get_db() -> sqlite3.Connection:
+    global _db_conn
+    if _db_conn is None:
+        os.makedirs("data", exist_ok=True)
+        _db_conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+        _db_conn.row_factory = sqlite3.Row
+        _db_conn.execute("PRAGMA journal_mode=WAL")
+    return _db_conn
+
+
+def _init_db() -> None:
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS spam_config (
+            guild_id        INTEGER PRIMARY KEY,
+            channel_id      INTEGER,
+            word            TEXT,
+            enabled         INTEGER NOT NULL DEFAULT 0,
+            streak          INTEGER NOT NULL DEFAULT 0,
+            best_streak     INTEGER NOT NULL DEFAULT 0,
+            last_author_id  INTEGER,
+            score_msg_id    INTEGER
+        )
+    """)
+    conn.commit()
+    _migrate_legacy_json()
 
 
 def _load_json(path: str) -> dict:
@@ -31,10 +63,22 @@ def _load_json(path: str) -> dict:
         return {}
 
 
-def _save_json(path: str, data: dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+def _migrate_legacy_json() -> None:
+    """One-time import of the old single spam.json into SQLite."""
+    count = get_db().execute("SELECT COUNT(*) AS n FROM spam_config").fetchone()["n"]
+    if count or not os.path.exists(CONFIG_FILE):
+        return
+    data = _load_json(CONFIG_FILE)
+    for guild_str, stored in data.items():
+        try:
+            guild_id = int(guild_str)
+        except ValueError:
+            continue
+        if not isinstance(stored, dict):
+            continue
+        config = _default_config()
+        config.update(stored)
+        _write_config(guild_id, config)
 
 
 def _default_config() -> dict:
@@ -49,20 +93,61 @@ def _default_config() -> dict:
     }
 
 
+def _row_to_config(row: sqlite3.Row) -> dict:
+    return {
+        "channel_id": row["channel_id"],
+        "word": row["word"],
+        "enabled": bool(row["enabled"]),
+        "streak": row["streak"] or 0,
+        "best_streak": row["best_streak"] or 0,
+        "last_author_id": row["last_author_id"],
+        "score_msg_id": row["score_msg_id"],
+    }
+
+
 def get_config(guild_id: int) -> dict:
-    data = _load_json(CONFIG_FILE)
-    stored = data.get(str(guild_id))
-    if not stored:
+    row = get_db().execute(
+        "SELECT * FROM spam_config WHERE guild_id = ?", (guild_id,)
+    ).fetchone()
+    if row is None:
         return _default_config()
-    config = _default_config()
-    config.update(stored)
-    return config
+    return _row_to_config(row)
+
+
+def _write_config(guild_id: int, config: dict) -> None:
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO spam_config (guild_id, channel_id, word, enabled, streak,
+                                 best_streak, last_author_id, score_msg_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(guild_id) DO UPDATE SET
+            channel_id=excluded.channel_id, word=excluded.word,
+            enabled=excluded.enabled, streak=excluded.streak,
+            best_streak=excluded.best_streak,
+            last_author_id=excluded.last_author_id, score_msg_id=excluded.score_msg_id
+        """,
+        (
+            guild_id,
+            config.get("channel_id"),
+            config.get("word"),
+            int(bool(config.get("enabled"))),
+            config.get("streak", 0),
+            config.get("best_streak", 0),
+            config.get("last_author_id"),
+            config.get("score_msg_id"),
+        ),
+    )
+    conn.commit()
 
 
 def set_config(guild_id: int, config: dict) -> None:
-    data = _load_json(CONFIG_FILE)
-    data[str(guild_id)] = config
-    _save_json(CONFIG_FILE, data)
+    merged = _default_config()
+    merged.update(config)
+    _write_config(guild_id, merged)
+
+
+_init_db()
 
 
 def _normalise(text: str) -> str:

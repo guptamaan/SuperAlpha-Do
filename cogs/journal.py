@@ -2,9 +2,10 @@
 cogs/journal.py — Global command journal (`journalctl`).
 
 Records every command invocation across every server into a persistent
-journal, masking sensitive information (AI prompts, hashed values, message
-content, raw snowflake IDs). `sudo journalctl` shows the last 10 commands and
-accepts filters such as `--music` for a category summary.
+journal (data/journal.db), masking sensitive information (AI prompts,
+hashed values, message content, raw snowflake IDs). `sudo journalctl` shows
+the last 10 commands and accepts filters such as `--music` for a category
+summary.
 
 Prefix  usage: sudo journalctl [count] [--<filter> ...]
 Example:      sudo journalctl --music
@@ -14,6 +15,7 @@ import hashlib
 import json
 import pathlib
 import re
+import sqlite3
 import time
 from collections import Counter
 
@@ -21,7 +23,7 @@ import discord
 from discord.ext import commands
 
 JOURNAL_FILE = pathlib.Path("data/command_journal.json")
-JOURNAL_DIR = JOURNAL_FILE.parent
+DATABASE_FILE = "data/journal.db"
 MAX_ENTRIES = 400
 DEFAULT_SHOW = 10
 MAX_SHOW = 25
@@ -59,23 +61,107 @@ _SNOWFLAKE_RE = re.compile(r"<@!?(\d+)>")
 
 
 # ── Persistence ────────────────────────────────────────────────────────────────
-def _load_journal() -> list[dict]:
-    if not JOURNAL_FILE.exists():
-        return []
+_db_conn: sqlite3.Connection | None = None
+
+
+def get_db() -> sqlite3.Connection:
+    global _db_conn
+    if _db_conn is None:
+        pathlib.Path("data").mkdir(exist_ok=True)
+        _db_conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+        _db_conn.row_factory = sqlite3.Row
+        _db_conn.execute("PRAGMA journal_mode=WAL")
+    return _db_conn
+
+
+def init_db() -> None:
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS journal (
+            id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts   REAL NOT NULL,
+            kind TEXT,
+            cmd  TEXT,
+            root TEXT,
+            cog  TEXT,
+            user TEXT,
+            uid  TEXT,
+            guild TEXT,
+            gid  TEXT,
+            args TEXT,
+            argc INTEGER
+        )
+    """)
+    conn.commit()
+    _migrate_legacy_json()
+
+
+def _migrate_legacy_json() -> None:
+    """One-time import of the old command_journal.json into SQLite."""
+    count = get_db().execute("SELECT COUNT(*) AS n FROM journal").fetchone()["n"]
+    if count or not JOURNAL_FILE.exists():
+        return
     try:
         with open(JOURNAL_FILE) as f:
             data = json.load(f)
-        return data if isinstance(data, list) else []
     except (json.JSONDecodeError, OSError):
-        return []
+        return
+    if not isinstance(data, list):
+        return
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        args = entry.get("args")
+        try:
+            get_db().execute(
+                "INSERT INTO journal (ts, kind, cmd, root, cog, user, uid, guild, gid, args, argc)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    entry.get("ts") or 0,
+                    entry.get("kind"),
+                    entry.get("cmd"),
+                    entry.get("root"),
+                    entry.get("cog"),
+                    entry.get("user"),
+                    entry.get("uid"),
+                    entry.get("guild"),
+                    entry.get("gid"),
+                    json.dumps(args) if args is not None else None,
+                    entry.get("argc") or 0,
+                ),
+            )
+        except Exception:
+            continue
+    if JOURNAL_FILE.exists():
+        get_db().execute(
+            "DELETE FROM journal WHERE id NOT IN"
+            " (SELECT id FROM journal ORDER BY id DESC LIMIT ?)",
+            (MAX_ENTRIES,),
+        )
+    get_db().commit()
 
 
-def _save_journal(entries: list[dict]) -> None:
-    JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = JOURNAL_FILE.with_name(JOURNAL_FILE.name + ".tmp")
-    with open(tmp, "w") as f:
-        json.dump(entries[-MAX_ENTRIES:], f, ensure_ascii=False, indent=1)
-    tmp.replace(JOURNAL_FILE)
+def _load_journal() -> list[dict]:
+    rows = get_db().execute(
+        "SELECT * FROM journal ORDER BY id ASC"
+    ).fetchall()
+    entries = []
+    for row in rows:
+        args = row["args"]
+        entries.append({
+            "ts": row["ts"],
+            "kind": row["kind"],
+            "cmd": row["cmd"],
+            "root": row["root"],
+            "cog": row["cog"],
+            "user": row["user"],
+            "uid": row["uid"],
+            "guild": row["guild"],
+            "gid": row["gid"],
+            "args": json.loads(args) if args is not None else None,
+            "argc": row["argc"] or 0,
+        })
+    return entries
 
 
 # ── Masking helpers ────────────────────────────────────────────────────────────
@@ -187,9 +273,31 @@ def _build_slash_entry(interaction: discord.Interaction) -> dict | None:
 
 def _record(entry: dict) -> None:
     try:
-        entries = _load_journal()
-        entries.append(entry)
-        _save_journal(entries)
+        args = entry.get("args")
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO journal (ts, kind, cmd, root, cog, user, uid, guild, gid, args, argc)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                entry.get("ts") or 0,
+                entry.get("kind"),
+                entry.get("cmd"),
+                entry.get("root"),
+                entry.get("cog"),
+                entry.get("user"),
+                entry.get("uid"),
+                entry.get("guild"),
+                entry.get("gid"),
+                json.dumps(args) if args is not None else None,
+                entry.get("argc") or 0,
+            ),
+        )
+        conn.execute(
+            "DELETE FROM journal WHERE id NOT IN"
+            " (SELECT id FROM journal ORDER BY id DESC LIMIT ?)",
+            (MAX_ENTRIES,),
+        )
+        conn.commit()
     except Exception:
         pass
 
@@ -253,6 +361,9 @@ def _render(entries: list[dict], count: int, filters: list[str]) -> str:
         else:
             lines.append("-- summary (today): no activity --")
     return "\n".join(lines)
+
+
+init_db()
 
 
 # ── Cog ────────────────────────────────────────────────────────────────────────

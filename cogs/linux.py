@@ -80,6 +80,9 @@ LINUX_ALIASES: dict[str, tuple[str, ...]] = {
     "distro": ("lsb_release",),
     # Steal emoji
     "steal": ("cp",),
+    # Suggestion board
+    "suggest": ("idea",),
+    "suggestion": ("roadmap",),
     # AI
     "ai": ("llama", "ollama"),
     "aiclear": ("historyclear",),

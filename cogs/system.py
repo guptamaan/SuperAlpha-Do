@@ -8,9 +8,13 @@ import asyncio
 import glob
 import math
 import os
+import re
+import subprocess
 import time
 import platform
+from datetime import datetime
 
+import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -114,6 +118,334 @@ def _task_count() -> int | None:
         return None
 
 
+# ── man search helpers ────────────────────────────────────────────────────────
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokens(text: str) -> set[str]:
+    return set(_TOKEN_RE.findall(text.lower()))
+
+
+def _make_man_embed(cmd, prefix: str) -> discord.Embed:
+    """Build the single-command man page embed (shared by man and man search)."""
+    embed = discord.Embed(
+        title=f"MAN PAGE — {prefix}{cmd.qualified_name}",
+        description=cmd.help or "No description available.",
+        color=0x2ECC71,
+    )
+
+    synopsis = None
+    usage_hint = (cmd.help or "").splitlines()
+    for line in usage_hint:
+        line = line.strip()
+        low = line.lower()
+        if low.startswith("usage:") or low.startswith("synopsis:"):
+            synopsis = line.split(":", 1)[1].strip()
+            break
+    synopsis = synopsis or f"{prefix}{cmd.qualified_name} {cmd.signature}"
+    embed.add_field(name="SYNOPSIS", value=f"`{synopsis}`", inline=False)
+
+    if cmd.aliases:
+        embed.add_field(name="ALIASES", value=", ".join(f"`{a}`" for a in cmd.aliases), inline=False)
+
+    try:
+        from cogs.linux import LINUX_ALIASES
+        linux_aliases = LINUX_ALIASES.get(cmd.name)
+        if linux_aliases:
+            embed.add_field(
+                name="LINUX ALIASES",
+                value=", ".join(f"`{a}`" for a in linux_aliases),
+                inline=False,
+            )
+    except Exception:
+        pass
+
+    embed.add_field(name="SUPPORT", value=f"Join the support server: {SUPPORT_SERVER}", inline=False)
+    embed.set_footer(text=f"{prefix}man {cmd.qualified_name}")
+    return embed
+
+
+def _search_commands(bot, query: str) -> list[tuple[int, object]]:
+    """Rank commands by how well they match a free-text query.
+
+    Scores come from exact name/alias matches, name/alias token hits, and
+    words that appear in the command's help text / signature.
+    Returns ``[(score, command), ...]`` sorted best-first (ties by name).
+    """
+    words = _tokens(query)
+    if not words:
+        return []
+
+    raw = []
+    for cmd in bot.walk_commands():
+        if getattr(cmd, "hidden", False):
+            continue
+        names = {cmd.name, *cmd.aliases}
+        name_tokens = _tokens(" ".join(names))
+        help_tokens = _tokens(f"{(cmd.help or '')} {cmd.signature}")
+
+        exact = query.strip().lower()
+        score = 0
+        if exact in names:
+            score += 50
+        for word in words:
+            if word in name_tokens:
+                score += 8
+            elif any(n.lower().startswith(word) for n in names):
+                score += 4
+            score += 3 if word in help_tokens else 0
+        if score:
+            raw.append((score, cmd))
+    raw.sort(key=lambda t: (-t[0], t[1].qualified_name))
+    return raw
+
+
+# ── git / latest code push ────────────────────────────────────────────────────
+GIT_REPO = "guptamaan/SuperAlpha-Do"
+
+_git_cache: dict = {}
+_GIT_CACHE_TTL = 120
+
+
+def _local_head() -> tuple[str, str] | None:
+    """(short_sha, branch) of the running checkout, or None if not a git repo."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if proc.returncode != 0:
+            return None
+        head = proc.stdout.strip()
+        branch = "main"
+        try:
+            b = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if b.returncode == 0 and b.stdout.strip():
+                branch = b.stdout.strip()
+        except Exception:
+            pass
+        return head, branch
+    except Exception:
+        return None
+
+
+def _local_latest() -> dict | None:
+    """Best-effort local `git log -1` fallback when GitHub is unreachable."""
+    try:
+        proc = subprocess.run(
+            ["git", "log", "-1", "--format=%h|%s|%an|%ad", "--date=iso"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if proc.returncode != 0:
+            return None
+        short, message, author, date = proc.stdout.strip().split("|", 3)
+        return {
+            "sha": short,
+            "short": short,
+            "message": message or "?",
+            "author": author or "?",
+            "date": date.strip(),
+            "url": "",
+        }
+    except Exception:
+        return None
+
+
+def _git_date(iso: str) -> str:
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.astimezone().strftime("%b %d, %Y · %H:%M")
+    except Exception:
+        return iso or "?"
+
+
+async def _latest_commits() -> list[dict] | None:
+    """Latest commits pushed to GitHub, cached for a short window."""
+    now = time.time()
+    cached = _git_cache.get("commits")
+    if cached and now - cached[0] < _GIT_CACHE_TTL:
+        return cached[1]
+    commits: list[dict] | None = None
+    try:
+        headers = {"Accept": "application/vnd.github+json"}
+        token = os.environ.get("GITHUB_TOKEN", "")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        url = f"https://api.github.com/repos/{GIT_REPO}/commits?per_page=5"
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    payload = await resp.json()
+                    if isinstance(payload, list):
+                        commits = [
+                            {
+                                "sha": c.get("sha", ""),
+                                "short": c.get("sha", "")[:7],
+                                "message": ((c.get("commit") or {}).get("message") or "").strip().splitlines()[0] or "?",
+                                "author": (((c.get("commit") or {}).get("author") or {}).get("name")) or "?",
+                                "date": (((c.get("commit") or {}).get("author") or {}).get("date")) or "",
+                                "url": c.get("html_url") or "",
+                            }
+                            for c in payload
+                        ]
+    except Exception:
+        commits = None
+    _git_cache["commits"] = (now, commits)
+    return commits
+
+
+class ManSearchView(discord.ui.View):
+    """Interactive search-results menu for `man <query>`.
+
+    Shows a dropdown of the best-matching commands; picking one swaps the
+    message to that command's man page, with a back button to return.
+    """
+
+    def __init__(self, bot, query: str, results: list[tuple[int, object]], author_id: int, prefix: str, timeout: float = 300.0) -> None:
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.query = query
+        self.results = results[:25]
+        self.author_id = author_id
+        self.prefix = prefix
+        self.index = 0
+        self._rebuild()
+
+    def _rebuild(self) -> None:
+        self.clear_items()
+        if self.index == 0:
+            select = discord.ui.Select(
+                placeholder=f'Results for "{self.query}" — pick a command',
+                min_values=1,
+                max_values=1,
+            )
+            select.callback = self._on_pick
+            for i, (_, cmd) in enumerate(self.results):
+                desc = ""
+                first = (cmd.help or "").strip().splitlines()
+                if first:
+                    desc = first[0][:90]
+                select.add_option(
+                    label=f"{self.prefix}{cmd.qualified_name}"[:100],
+                    description=desc[:100],
+                    value=str(i),
+                )
+            self.add_item(select)
+            close = discord.ui.Button(label="🗑 Close", style=discord.ButtonStyle.danger)
+            close.callback = self._on_close
+            self.add_item(close)
+        else:
+            back = discord.ui.Button(label="← Back to results", style=discord.ButtonStyle.secondary)
+            back.callback = self._on_back
+            self.add_item(back)
+            close = discord.ui.Button(label="🗑 Close", style=discord.ButtonStyle.danger)
+            close.callback = self._on_close
+            self.add_item(close)
+
+    def _search_embed(self) -> discord.Embed:
+        embed = discord.Embed(title=f'🔎  man — search: "{self.query}"', color=0x3498DB)
+        lines = []
+        for _, cmd in self.results:
+            hint = ""
+            first = (cmd.help or "").strip().splitlines()
+            if first:
+                synopsis = first[0].split("Usage:", 1)[-1].strip()
+                hint = f"— {synopsis[:60]}" if synopsis else ""
+            lines.append(f"`{self.prefix}{cmd.qualified_name}` {hint}".rstrip())
+        embed.description = "\n".join(lines)
+        embed.add_field(name="🛟 Support", value=f"Need help? Join the support server: {SUPPORT_SERVER}", inline=False)
+        embed.set_footer(text=f"{self.prefix}man <command> for details · pick from the dropdown below")
+        return embed
+
+    async def _on_pick(self, interaction: discord.Interaction) -> None:
+        self.index = int(interaction.data["values"][0]) + 1
+        self._rebuild()
+        cmd = self.results[self.index - 1][1]
+        embed = _make_man_embed(cmd, self.prefix)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def _on_back(self, interaction: discord.Interaction) -> None:
+        self.index = 0
+        self._rebuild()
+        await interaction.response.edit_message(embed=self._search_embed(), view=self)
+
+    async def _on_close(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+        await interaction.delete_original_response()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("These buttons aren't for you.", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            child.disabled = True
+        try:
+            message = self.message
+            if message:
+                await message.edit(view=self)
+        except Exception:
+            pass
+
+
+class ManView(discord.ui.View):
+    """Interactive paginated view for `man` with ◀ / ▶ buttons."""
+
+    def __init__(self, embeds: list[discord.Embed], author_id: int, timeout: float = 300.0) -> None:
+        super().__init__(timeout=timeout)
+        self.embeds = embeds
+        self.author_id = author_id
+        self.index = 0
+        self._update_buttons()
+
+    def _update_buttons(self) -> None:
+        self.prev.disabled = self.index == 0
+        self.next.disabled = self.index == len(self.embeds) - 1
+        self.counter.label = f"{self.index + 1}/{len(self.embeds)}"
+
+    async def _show(self, interaction: discord.Interaction) -> None:
+        self._update_buttons()
+        embed = self.embeds[self.index]
+        embed.set_footer(text=f"Page {self.index + 1}/{len(self.embeds)} · alpha man <command> for details")
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("These buttons aren't for you.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        self.index = max(0, self.index - 1)
+        await self._show(interaction)
+
+    @discord.ui.button(label="1/1", style=discord.ButtonStyle.secondary, disabled=True)
+    async def counter(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.defer()
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.success)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        self.index = min(len(self.embeds) - 1, self.index + 1)
+        await self._show(interaction)
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            child.disabled = True
+        try:
+            message = self.message
+            if message:
+                await message.edit(view=self)
+        except Exception:
+            pass
+
+
 class System(commands.Cog, name="system"):
     """Core system commands (ping, uptime, man, reload, shutdown)."""
 
@@ -121,6 +453,13 @@ class System(commands.Cog, name="system"):
         self.bot = bot
         self._htop_refresh = 3.0
         self._htop_refreshes = 10
+
+    def _ws_ms(self) -> int:
+        """WebSocket latency in ms; 0 when no websocket is connected yet."""
+        try:
+            return round(self.bot.latency * 1000)
+        except (ValueError, TypeError):
+            return 0
 
     # ── ping ──────────────────────────────────────────────────────────────────
     @commands.command(name="ping", aliases=["uname"])
@@ -131,7 +470,7 @@ class System(commands.Cog, name="system"):
         before = _t.monotonic()
         msg = await ctx.send("```bash\n$ sudo ping discord.com\nPinging…\n```")
         rtt = round((_t.monotonic() - before) * 1000)
-        ws  = round(self.bot.latency * 1000)
+        ws  = self._ws_ms()
         await msg.edit(content=(
             f"```bash\n$ sudo ping discord.com\n"
             f"PING discord.com: 64 bytes\n"
@@ -165,83 +504,137 @@ class System(commands.Cog, name="system"):
             f" up {uptime_str},  1 user,  load average: 0.01, 0.01, 0.00\n```"
         )
 
+    # ── git / latest push ────────────────────────────────────────────────────
+    @commands.command(name="git", aliases=["push", "changelog", "latest"])
+    async def git_cmd(self, ctx: commands.Context) -> None:
+        """Show the latest code push for the bot. Usage: alpha git"""
+        embed = discord.Embed(title=f"📦 Latest Code Push — {GIT_REPO}", color=0x2ECC71)
+
+        commits = await _latest_commits()
+        source = "remote"
+        if not commits:
+            local = _local_latest()
+            if local:
+                commits = [local]
+                source = "local"
+            else:
+                embed.add_field(
+                    name="🚀 Latest Push",
+                    value="Couldn't reach GitHub and this box isn't a git checkout.",
+                    inline=False,
+                )
+
+        if commits:
+            latest = commits[0]
+            embed.add_field(
+                name="🚀 Latest Push",
+                value=f"**{latest['message'][:90]}**",
+                inline=False,
+            )
+            sha_line = f"`{latest['short']}`"
+            if latest.get("url"):
+                sha_line = f"[`{latest['short']}`]({latest['url']})"
+            embed.add_field(name="Commit", value=sha_line, inline=True)
+            embed.add_field(name="Author", value=latest["author"], inline=True)
+            embed.add_field(name=f"Pushed ({source})", value=_git_date(latest["date"]), inline=True)
+            if len(commits) > 1:
+                lines = [f"`{c['short']}` — {c['message'][:55]}" for c in commits[1:5]]
+                embed.add_field(name="Recent pushes", value="\n".join(lines), inline=False)
+
+        local = _local_head()
+        if local:
+            head, branch = local
+            if source == "remote" and commits and commits[0]["short"] != head:
+                embed.add_field(
+                    name="⚠️ Running Version",
+                    value=(
+                        f"This checkout is on `{head}` ({branch}) — **behind** the latest push. "
+                        "Pull the new code into the bot folder (`git pull`) to update it."
+                    ),
+                    inline=False,
+                )
+            else:
+                embed.add_field(
+                    name="✅ Running Version",
+                    value=f"`{head}` ({branch}) — up to date",
+                    inline=False,
+                )
+
+        embed.set_footer(text=f"{ctx.prefix}git · github.com/{GIT_REPO}")
+        await ctx.send(embed=embed)
+
     # ── man ───────────────────────────────────────────────────────────────────
     @commands.command(name="man", aliases=["help", "--help", "-h", "ls"])
     async def man(self, ctx: commands.Context, *, command_name: str | None = None) -> None:
-        """Show the manual page for a command or list all commands. Usage: alpha man [command]"""
+        """Manual page for a command, a search by function/words, or the full list. Usage: alpha man [command|words]"""
         prefix = ctx.clean_prefix
 
         if command_name:
             cmd = self.bot.get_command(command_name)
-            if cmd is None:
-                await ctx.send(f"```bash\nNo manual entry for {command_name}\n```")
+            if cmd is not None:
+                await ctx.send(embed=_make_man_embed(cmd, prefix))
                 return
 
-            embed = discord.Embed(
-                title=f"MAN PAGE — {prefix}{cmd.qualified_name}",
-                description=cmd.help or "No description available.",
-                color=0x2ECC71,
-            )
+            results = _search_commands(self.bot, command_name)
+            if not results:
+                await ctx.send(
+                    f"```bash\nNo manual entry for {command_name}\n"
+                    "Tip: try related words or the command's purpose, e.g. 'music', 'give role', 'xp'\n"
+                    "or run 'man' to list everything.\n```"
+                )
+                return
 
-            synopsis = None
-            if cmd.help:
-                for line in cmd.help.splitlines():
-                    line = line.strip()
-                    low = line.lower()
-                    if low.startswith("usage:"):
-                        synopsis = line[len("usage:"):].strip()
-                        break
-                    if low.startswith("synopsis:"):
-                        synopsis = line[len("synopsis:"):].strip()
-                        break
-            synopsis = synopsis or f"{prefix}{cmd.qualified_name} {cmd.signature}"
-            embed.add_field(name="SYNOPSIS", value=f"`{synopsis}`", inline=False)
+            top_score = results[0][0]
+            second_score = results[1][0] if len(results) > 1 else 0
+            if top_score >= 8 and top_score >= 2 * second_score:
+                await ctx.send(embed=_make_man_embed(results[0][1], prefix))
+                return
 
-            if cmd.aliases:
-                alias_str = ", ".join(f"`{a}`" for a in cmd.aliases)
-                embed.add_field(name="ALIASES", value=alias_str, inline=False)
-
-            try:
-                from cogs.linux import LINUX_ALIASES
-                linux_aliases = LINUX_ALIASES.get(cmd.name)
-                if linux_aliases:
-                    embed.add_field(
-                        name="LINUX ALIASES",
-                        value=", ".join(f"`{a}`" for a in linux_aliases),
-                        inline=False,
-                    )
-            except Exception:
-                pass
-
-            embed.add_field(
-                        name="SUPPORT",
-                        value=f"Join the support server: {SUPPORT_SERVER}",
-                        inline=False,
-                    )
-
-            embed.set_footer(text=f"{prefix}man {cmd.qualified_name}")
-            await ctx.send(embed=embed)
+            view = ManSearchView(self.bot, command_name, results, ctx.author.id, prefix)
+            message = await ctx.send(embed=view._search_embed(), view=view)
+            view.message = message
             return
 
         # Full command listing grouped by cog
-        embed = discord.Embed(
-            title="📖  man  —  Command Manual",
-            description=f"Prefix: `{prefix} <command>`\nUse `{prefix}man <command>` for detailed info.\n"
-            "Many commands have Linux/Arch aliases (e.g., `alpha ls` shows all commands).",
-            color=0x3498DB,
-        )
+        cog_fields = []
         for cog_name, cog in sorted(self.bot.cogs.items()):
             cmds = [c for c in cog.get_commands() if not c.hidden]
             if cmds:
                 value = "  ".join(f"`{c.name}`" for c in cmds)
-                embed.add_field(name=f"[{cog_name.upper()}]", value=value, inline=False)
-        embed.add_field(
+                if len(value) > 1024:
+                    value = value[:1021] + "…"
+                cog_fields.append((f"[{cog_name.upper()}]", value))
+
+        MAX_FIELDS = 12
+        chunks = [cog_fields[i:i + MAX_FIELDS] for i in range(0, len(cog_fields), MAX_FIELDS)]
+        embeds = []
+        for index, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title="📖  man  —  Command Manual",
+                description=(
+                    f"Prefix: `{prefix} <command>`\nUse `{prefix}man <command>` for detailed info.\n"
+                    "Many commands have Linux/Arch aliases (e.g., `alpha ls` shows all commands)."
+                ) if index == 0 else None,
+                color=0x3498DB,
+            )
+            for name, value in chunk:
+                embed.add_field(name=name, value=value, inline=False)
+            embeds.append(embed)
+        embeds[-1].add_field(
             name="🛟 Support",
             value=f"Need help? Join the support server: {SUPPORT_SERVER}",
             inline=False,
         )
-        embed.set_footer(text=f"{prefix}man <command> for detailed usage")
-        await ctx.send(embed=embed)
+
+        if len(embeds) == 1:
+            embeds[0].set_footer(text=f"{prefix}man <command> for detailed usage")
+            await ctx.send(embed=embeds[0])
+            return
+
+        view = ManView(embeds, ctx.author.id)
+        embeds[0].set_footer(text=f"Page 1/{len(embeds)} · alpha man <command> for details")
+        message = await ctx.send(embed=embeds[0], view=view)
+        view.message = message
 
     # ── status ────────────────────────────────────────────────────────────────
     @commands.command(name="status", aliases=["sysinfo"])
