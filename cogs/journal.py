@@ -28,6 +28,11 @@ MAX_ENTRIES = 400
 DEFAULT_SHOW = 10
 MAX_SHOW = 25
 
+HISTORY_DB = "data/history.db"
+HISTORY_MAX = 100
+HISTORY_SHOW = 15
+HISTORY_LIMIT = 50
+
 # Commands whose full argument content is treated as sensitive and is
 # replaced with a redaction marker in the journal.
 SENSITIVE_COMMANDS = {
@@ -302,6 +307,137 @@ def _record(entry: dict) -> None:
         pass
 
 
+# ── Per-user command history ───────────────────────────────────────────────────
+_history_conn: sqlite3.Connection | None = None
+
+
+def _hist_db() -> sqlite3.Connection:
+    global _history_conn
+    if _history_conn is None:
+        pathlib.Path("data").mkdir(exist_ok=True)
+        _history_conn = sqlite3.connect(HISTORY_DB, check_same_thread=False)
+        _history_conn.row_factory = sqlite3.Row
+        _history_conn.execute("PRAGMA journal_mode=WAL")
+    return _history_conn
+
+
+def init_history() -> None:
+    conn = _hist_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            uid     INTEGER NOT NULL,
+            line    INTEGER NOT NULL,
+            ts      REAL NOT NULL,
+            content TEXT NOT NULL,
+            UNIQUE (uid, line)
+        )
+    """)
+    conn.commit()
+
+
+def _record_history(uid: int, content: str) -> None:
+    """Store the raw command line for a user, capped at HISTORY_MAX lines."""
+    content = (content or "").strip()
+    if not content:
+        return
+    if len(content) > 300:
+        content = content[:300] + "…"
+    conn = _hist_db()
+    for _ in range(5):
+        next_line = conn.execute(
+            "SELECT COALESCE(MAX(line), 0) FROM history WHERE uid = ?", (uid,)
+        ).fetchone()[0] + 1
+        try:
+            conn.execute(
+                "INSERT INTO history (uid, line, ts, content) VALUES (?,?,?,?)",
+                (uid, next_line, time.time(), content),
+            )
+            break
+        except sqlite3.IntegrityError:
+            continue
+    else:
+        return
+    conn.execute(
+        "DELETE FROM history WHERE uid = ? AND id NOT IN"
+        " (SELECT id FROM history WHERE uid = ? ORDER BY id DESC LIMIT ?)",
+        (uid, uid, HISTORY_MAX),
+    )
+    conn.commit()
+
+
+def _hist_recent(uid: int, limit: int) -> list[dict]:
+    """Most recent history entries for a user, oldest-first."""
+    limit = max(1, min(limit, HISTORY_LIMIT))
+    rows = _hist_db().execute(
+        "SELECT line, content FROM history WHERE uid = ? ORDER BY id DESC LIMIT ?",
+        (uid, limit),
+    ).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+def _hist_line(uid: int, line: int) -> dict | None:
+    """History entry for one line number (or None)."""
+    row = _hist_db().execute(
+        "SELECT line, content FROM history WHERE uid = ? AND line = ?"
+        " ORDER BY id ASC LIMIT 1",
+        (uid, line),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _hist_last(uid: int) -> dict | None:
+    """Most recent history entry for a user (or None)."""
+    row = _hist_db().execute(
+        "SELECT line, content FROM history WHERE uid = ? ORDER BY id DESC LIMIT 1",
+        (uid,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _hist_prefix(uid: int, key: str) -> dict | None:
+    """Most recent history entry whose command starts with the given word."""
+    key = key.lower()
+    rows = _hist_db().execute(
+        "SELECT line, content FROM history WHERE uid = ? ORDER BY id DESC",
+        (uid,),
+    ).fetchall()
+    for r in rows:
+        toks = (r["content"] or "").split()
+        if len(toks) < 2:
+            continue
+        word = toks[1].lstrip("!/").lower()
+        if word.startswith(key):
+            return dict(r)
+    return None
+
+
+# ── Re-running a command line ─────────────────────────────────────────────────
+class _StubMessage:
+    """Message stand-in that re-uses the original message's attributes."""
+
+    __slots__ = ("_src", "content")
+
+    def __init__(self, src: discord.Message, content: str) -> None:
+        self._src = src
+        self.content = content
+
+    def __getattr__(self, name: str):
+        return getattr(self._src, name)
+
+
+async def _run_as(ctx: commands.Context, line: str) -> bool:
+    """Rebuild `line` as a fresh command and run it under the original context."""
+    line = (line or "").strip()
+    if not line:
+        return False
+    try:
+        await ctx.bot.process_commands(_StubMessage(ctx.message, line))
+        return True
+    except Exception:
+        return False
+
+
 # ── Rendering ──────────────────────────────────────────────────────────────────
 def _format_args(entry: dict) -> str:
     args = entry.get("args")
@@ -364,6 +500,7 @@ def _render(entries: list[dict], count: int, filters: list[str]) -> str:
 
 
 init_db()
+init_history()
 
 
 # ── Cog ────────────────────────────────────────────────────────────────────────
@@ -379,6 +516,12 @@ class Journal(commands.Cog, name="journal"):
         cmd = ctx.command
         if cmd is None or getattr(cmd, "hidden", False):
             return
+        if cmd.name in ("history", "!!"):
+            return
+        try:
+            _record_history(ctx.author.id, ctx.message.content)
+        except Exception:
+            pass
         try:
             _record(_build_prefix_entry(ctx))
         except Exception:
@@ -448,6 +591,49 @@ class Journal(commands.Cog, name="journal"):
         if description:
             embed.description = description
         return embed
+
+    # ── history ────────────────────────────────────────────────────────────────
+    @commands.command(name="history", aliases=["hist"])
+    async def history(self, ctx: commands.Context, count: int = HISTORY_SHOW) -> None:
+        """Show your recent commands with line numbers. Usage: sudo history [count]"""
+        rows = _hist_recent(ctx.author.id, count)
+        prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+        if not rows:
+            embed = self._make_embed(
+                "📜  history",
+                0x3498DB,
+                f"No commands in your history yet.\n"
+                f"Run `{prefix} !!` to re-run the last command.",
+            )
+            await ctx.send(embed=embed)
+            return
+        lines = ["$ history"]
+        for entry in rows:
+            lines.append(f"  {entry['line']:>5}  {entry['content']}")
+        embed = discord.Embed(
+            title="📜  history",
+            description=f"```bash\n{chr(10).join(lines)}\n```",
+            color=0x3498DB,
+        )
+        embed.set_footer(
+            text=f"{prefix} !! · {prefix}!<line> to re-run one · alt: {prefix}!<word>"
+        )
+        await ctx.send(embed=embed)
+
+    # ── !! ──────────────────────────────────────────────────────────────────
+    @commands.command(name="!!")
+    async def bangbang(self, ctx: commands.Context) -> None:
+        """Re-run your last command. Usage: sudo !!"""
+        entry = _hist_last(ctx.author.id)
+        if entry is None:
+            embed = self._make_embed(
+                "❌ bash: !!: event not found",
+                0xE74C3C,
+                "No previous command in your history.",
+            )
+            await ctx.send(embed=embed)
+            return
+        await _run_as(ctx, entry["content"])
 
 
 async def setup(bot: commands.Bot) -> None:

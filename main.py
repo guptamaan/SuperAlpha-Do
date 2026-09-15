@@ -5,8 +5,10 @@ plus the bot mention and slash (/) commands.
 """
 
 import asyncio
+import difflib
 import logging
 import os
+import re
 import sys
 
 import discord
@@ -218,10 +220,7 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError) 
             pass
 
     if isinstance(error, commands.CommandNotFound):
-        cmd = ctx.invoked_with
-        await send_error(
-            f"Unknown command: `{cmd}`.\nTry `{prefix} man` to see available commands."
-        )
+        await _handle_not_found(ctx, ctx.invoked_with or "")
     elif isinstance(error, commands.MissingRequiredArgument):
         await send_error(
             f"Missing operand: `{error.param.name}`.",
@@ -258,6 +257,162 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError) 
     else:
         log.exception("Unhandled error in command '%s':", ctx.command, exc_info=error)
         await send_error(f"Unexpected error: `{error}`.")
+
+
+# ── Unknown-command handling: bash suggestions + history re-runs ──────────────
+async def _handle_not_found(ctx: commands.Context, invoked: str) -> None:
+    if invoked.startswith("!") and len(invoked) > 1:
+        from cogs.journal import _hist_line, _hist_prefix, _run_as
+
+        bang = re.fullmatch(r"!([\w-]+)", invoked)
+        if bang:
+            word = bang.group(1)
+            entry = _hist_line(ctx.author.id, int(word)) if word.isdigit() else _hist_prefix(ctx.author.id, word)
+            if entry is None:
+                prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+                await ctx.send(
+                    embed=discord.Embed(
+                        title="⚠️ Command Error",
+                        description=f"bash: `{invoked}`: event not found",
+                        color=0xE74C3C,
+                    ).set_footer(text=f"Prefix: {prefix}")
+                )
+                return
+            await _run_as(ctx, entry["content"])
+            return
+    await _suggest_command(ctx, invoked)
+
+
+def _suggestion_names(bot: commands.Bot) -> list[str]:
+    names = {cmd.name for cmd in bot.walk_commands()}
+    for cmd in bot.walk_commands():
+        names.update(cmd.aliases)
+    try:
+        from cogs.linux import LINUX_ALIASES
+
+        for group in LINUX_ALIASES.values():
+            names.update(group)
+    except Exception:
+        pass
+    return sorted(names)
+
+
+def _closest_names(invoked: str, names: list[str], top: int = 3) -> list[str]:
+    compared = invoked.lower()
+    scored = []
+    for name in names:
+        other = name.lower()
+        if other == compared:
+            continue
+        ratio = difflib.SequenceMatcher(None, compared, other).ratio()
+        if other.startswith(compared) or compared.startswith(other):
+            ratio += 0.15
+        if compared in other or other in compared:
+            ratio += 0.25
+        if ratio >= 0.55:
+            scored.append((ratio, name))
+    scored.sort(reverse=True)
+    return [name for _, name in scored[:top]]
+
+
+async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
+    """Prompt `Did you mean …? (y/n/hint)` for a typo'd command, like bash."""
+    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    names = _suggestion_names(ctx.bot)
+    candidates = _closest_names(invoked, names)
+    if not candidates:
+        try:
+            await ctx.send(
+                embed=discord.Embed(
+                    title="⚠️ Command Error",
+                    description=(
+                        f"bash: `{invoked}`: command not found\n"
+                        f"Try `{prefix} man` to see available commands."
+                    ),
+                    color=0xE74C3C,
+                ).set_footer(text=f"Prefix: {prefix}")
+            )
+        except discord.HTTPException:
+            pass
+        return
+
+    async def edit(msg: discord.Message, content: str) -> None:
+        try:
+            await msg.edit(content=content)
+        except discord.HTTPException:
+            pass
+
+    from cogs.journal import _run_as
+
+    prompt = f"Did you mean: `{candidates[0]}`?  (y / n / hint)"
+    body_lines = [
+        f"$ {prefix} {invoked}",
+        f"bash: {invoked}: command not found",
+        prompt,
+    ]
+    body = "```bash\n" + "\n".join(body_lines) + "\n```"
+
+    def make_check(allow_numbers: bool = False):
+        choices = {"y", "yes", "n", "no", "hint", "cancel"}
+        if allow_numbers:
+            choices.update({"1", "2", "3"})
+        return lambda m: (
+            m.author.id == ctx.author.id
+            and m.channel.id == ctx.channel.id
+            and m.content.strip().lower() in choices
+        )
+
+    def target_key(choice: str) -> str | None:
+        if choice in ("y", "yes"):
+            return candidates[0]
+        if choice in ("1", "2", "3"):
+            idx = int(choice) - 1
+            return candidates[idx] if idx < len(candidates) else None
+        return None
+
+    async def wait_answer(check, timeout: float = 30.0):
+        try:
+            return await ctx.bot.wait_for("message", check=check, timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+
+    try:
+        msg = await ctx.send(body)
+    except discord.HTTPException:
+        return
+
+    answer = await wait_answer(make_check())
+    if answer is None:
+        await edit(msg, body + "* ignored — nothing run *")
+        return
+    choice = answer.content.strip().lower()
+    if choice in ("n", "no", "cancel"):
+        await edit(msg, body + "* aborted *")
+        return
+    if choice == "hint":
+        hint_lines = [
+            f"$ {prefix} {invoked}",
+            f"bash: {invoked}: command not found",
+            "Did you mean one of:",
+        ]
+        for i, name in enumerate(candidates, 1):
+            hint_lines.append(f"  {i}. {name}")
+        hint_lines.append("(reply 1-3, y / n / cancel)")
+        hint_body = "```bash\n" + "\n".join(hint_lines) + "\n```"
+        await edit(msg, hint_body)
+        answer = await wait_answer(make_check(allow_numbers=True), timeout=30.0)
+        if answer is None:
+            await edit(msg, hint_body + "* ignored — nothing run *")
+            return
+        choice = answer.content.strip().lower()
+        if choice in ("n", "no", "cancel"):
+            await edit(msg, hint_body + "* aborted *")
+            return
+    target = target_key(choice)
+    if target is None:
+        return
+    await edit(msg, body + f"\nRunning `{prefix} {target}`…")
+    await _run_as(ctx, f"{ctx.prefix}{target}")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
