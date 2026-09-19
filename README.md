@@ -183,7 +183,7 @@ Optional Linux/Arch-inspired command aliases. Enable with `alpha enable linux` t
 
 ## Project status
 
-This repository is under active development. Features may be incomplete, renamed, or removed without notice. For the stable release, see the main SuperUser DO repository.
+This repository is under active development. Features may be incomplete, renamed, or removed without notice. For the stable release, use SuperUser Do (closed source).
 
 ---
 
