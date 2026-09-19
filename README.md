@@ -92,7 +92,7 @@ Slash commands and bot-mention pings are also accepted as prefix.
 
 ### Feature flags
 
-Two optional features are disabled by default and must be enabled per server:
+Three optional features are disabled by default and must be enabled per server:
 
 | Feature  | Enable                       | Disable                      |
 |----------|------------------------------|------------------------------|
