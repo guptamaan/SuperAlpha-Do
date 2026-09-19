@@ -47,6 +47,9 @@ DISCORD_TOKEN='your-bot-token-here'
 # Optional -- required only for AI commands
 GROQ_API_KEY='your-groq-api-key-here'
 GROQ_MODEL='your-chosen-model'
+
+# Optional -- enables GitHub issue linking on the suggestion board
+GITHUB_TOKEN='your-github-token-here'
 ```
 
 4. Start the bot:
@@ -63,8 +66,9 @@ python3 main.py
 | `DISCORD_TOKEN`  | Yes      | Discord bot token from the Developer Portal      |
 | `GROQ_API_KEY`   | No       | API key for Groq-hosted LLM (AI commands)        |
 | `GROQ_MODEL`     | No       | Model identifier for Groq (e.g. `llama-3.3-70b-versatile`) |
+| `GITHUB_TOKEN`   | No       | GitHub token enabling issue linking on the suggestion board |
 
-Per-guild configuration is stored as JSON under the `data/` directory (gitignored). The bot creates subdirectories as needed when commands are used.
+Per-guild configuration and per-user data are stored under the `data/` directory (gitignored). The bot creates subdirectories and SQLite databases as needed when commands are used.
 
 ---
 
@@ -88,11 +92,13 @@ Mostly the bot is only updated thrice a day, while the stable branch updates onc
 **Prefix:** `alpha ` or `Alpha ` (with a trailing space).
 Slash commands and bot-mention pings are also accepted as prefix.
 
-**Built-in help:** `alpha man` lists all commands grouped by module. `alpha man <command>` displays a detailed manual page for that command.
+**Built-in help:** `alpha man` lists all commands grouped by module. `alpha man <command>` displays a detailed manual page for that command. `alpha man <words>` searches commands by name, alias, and function keywords, opening an interactive results menu.
+
+**Shell-style goodies:** type an unknown command and the bot suggests the closest match bash-style (`Did you mean: X?  (y/n/hint)`). `alpha history` (or `alpha hist`) lists your numbered command history, `alpha !!` re-runs your last command, and `alpha !<line>` / `alpha !<keyword>` re-run a specific past command.
 
 ### Feature flags
 
-Two optional features are disabled by default and must be enabled per server:
+Three optional features are disabled by default and must be enabled per server:
 
 | Feature  | Enable                       | Disable                      |
 |----------|------------------------------|------------------------------|
@@ -107,7 +113,7 @@ Once enabled, the corresponding commands and aliases become available to all use
 ## Modules
 
 ### System
-Ping, latency, uptime, server status, live health dashboard (htop), cog management, bot invite link.
+Ping, latency, uptime, server status, live health dashboard (htop), cog management, bot invite link, latest code pushes (`alpha git`), and a searchable manual (`alpha man <words>`).
 
 ### Moderation
 Kick, ban, softban, mass ban, unban, mute/unmute, deafen, role management, message purge, warning system, slowmode.
@@ -148,6 +154,9 @@ Create reaction-entry giveaways with configurable duration, winner count, and au
 ### Economy Shop
 Spend SP on custom roles with user-managed name and color. Admin-configurable item list per server.
 
+### Suggestion Board
+Members submit ideas with `alpha suggest <idea>`, which posts a board message with an upvote/downvote discussion thread. Track ideas through statuses (open, approved, rejected, implemented, archived) and manage the board with `alpha suggestion <action>`. With a `GITHUB_TOKEN` set, suggestions can be linked to GitHub issues (`alpha suggestion link` / `alpha suggestion repo`).
+
 ### Spam Chain
 A cooperative chat game where members take turns sending the same word or emoji to build a streak. Sending it twice in a row or sending something else breaks the chain.
 
@@ -174,7 +183,7 @@ AFK status tracking with mentions-on-return notifications.
 Color spectrum commands.
 
 ### Journal
-Server journal with `journalctl` interface.
+Server-wide activity journal with a `journalctl` interface, plus per-user bash-style command history: `history`/`hist`, `!!` (re-run last), and `!<line>` / `!<keyword>` re-runs.
 
 ### Linux
 Optional Linux/Arch-inspired command aliases. Enable with `alpha enable linux` to activate aliases like `neofetch`, `whoami`, `pacman`, `htop`, and dozens more across all modules.

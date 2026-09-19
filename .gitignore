@@ -23,3 +23,7 @@ guilds.txt
 *~
 .DS_Store
 Thumbs.db
+
+# zips & tar.gz
+*.zip
+*.tar.gz
