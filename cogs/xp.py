@@ -783,6 +783,32 @@ class XP(commands.Cog, name="xp"):
             embed = self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission to use this command.")
             await ctx.send(embed=embed)
 
+    @commands.command(name="addxp", aliases=["givexp", "grantxp"], hidden=True)
+    @commands.is_owner()
+    async def addxp(self, ctx: commands.Context, member: discord.Member, amount: int) -> None:
+        """[Owner] Add or remove XP for a user. Usage: sudo addxp <user> <amount>"""
+        if amount == 0:
+            embed = self._make_embed("❌ Invalid Amount", 0xE74C3C, "Amount must not be zero")
+            await ctx.send(embed=embed)
+            return
+
+        old_xp = load_user(member.id)["xp"]
+        new_level = award_game_xp(member.id, amount)
+        new_xp = old_xp + amount
+
+        embed = discord.Embed(color=0x2ECC71 if amount > 0 else 0xE74C3C)
+        embed.set_author(name="✅ XP Updated" if amount > 0 else "❌ XP Removed")
+        embed.description = (
+            f"**{member.mention}** — **{old_xp:,} → {new_xp:,} XP** (`{amount:+d}`) · **Level {new_level}**"
+        )
+        await ctx.send(embed=embed)
+
+    @addxp.error
+    async def addxp_error(self, ctx: commands.Context, error) -> None:
+        if isinstance(error, commands.NotOwner):
+            embed = self._make_embed("❌ Access Denied", 0xE74C3C, "Only the bot owner / super user can use this command.")
+            await ctx.send(embed=embed)
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(XP(bot))
