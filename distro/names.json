@@ -192,7 +192,7 @@
     "name": "Omarchy",
     "tier": "hard",
     "hints": [
-      "An immutable distro built on top of NixOS",
+      "An immutable distro built on top of Arch",
       "Made popular by a Linux YouTube channel"
     ],
     "aliases": ["omarchy os", "omarch", "omarchy linux"]
