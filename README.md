@@ -83,7 +83,7 @@ And for the second update at same date will be 27.1.1A
 For third - 27.1.1B and so on
 
 
-Mostly the bot is only updated thrice a day, while the stable branch updates once or twice a *month*.
+Atmax the bot is only updated thrice a day, while the stable branch updates once or twice a *Month*.
 
 ---
 

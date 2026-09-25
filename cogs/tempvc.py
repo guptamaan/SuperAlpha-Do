@@ -130,12 +130,21 @@ class TempVCManager(commands.Cog, name="tempvc"):
             await ctx.send(embed=embed)
             return
 
+        action = action.lower()
+
         if vc and not self._is_owner(vc, ctx.author.id):
             embed = self._make_embed("❌ Not Owner", 0xE74C3C, "Only the VC owner can do this")
             await ctx.send(embed=embed)
             return
 
-        action = action.lower()
+        if not vc and action != "claim":
+            embed = self._make_embed(
+                "❌ Not a Temp VC", 0xE74C3C,
+                "This isn't a temporary voice channel owned by you. "
+                "Use `sudo vc claim` to take ownership of an empty channel.",
+            )
+            await ctx.send(embed=embed)
+            return
 
         if action == "name":
             if not value:

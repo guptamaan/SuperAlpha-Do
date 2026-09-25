@@ -14,6 +14,7 @@ from discord.ext import commands
 
 from cogs.automod import get_guild_config as _get_automod_config
 from cogs.automod import set_guild_config as _set_automod_config
+from cogs.checks import perms_or_developer
 from cogs.distro import set_enabled as _set_distro_enabled
 
 MODE_FILE = pathlib.Path("data/linux_mode.json")
@@ -295,6 +296,7 @@ class Linux(commands.Cog, name="linux"):
         return embed
 
     @commands.command(name="enable")
+    @perms_or_developer(administrator=True)
     async def enable(self, ctx: commands.Context, feature: str = "linux") -> None:
         """Enable a feature. Usage: alpha enable <linux|automod|distro>"""
         feature = feature.strip().lower()
@@ -362,6 +364,7 @@ class Linux(commands.Cog, name="linux"):
         await ctx.send(embed=embed)
 
     @commands.command(name="disable")
+    @perms_or_developer(administrator=True)
     async def disable(self, ctx: commands.Context, feature: str = "linux") -> None:
         """Disable a feature. Usage: alpha disable <linux|automod|distro>"""
         feature = feature.strip().lower()

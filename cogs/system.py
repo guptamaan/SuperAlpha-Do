@@ -896,11 +896,9 @@ class System(commands.Cog, name="system"):
 
     # ── shutdown ──────────────────────────────────────────────────────────────
     @commands.command(name="shutdown", aliases=["halt", "poweroff"], hidden=True)
+    @commands.is_owner()
     async def shutdown(self, ctx: commands.Context) -> None:
         """Gracefully shut down the bot. Usage: sudo shutdown"""
-        if ctx.author.id != 1224391248580972584:
-            await ctx.send("```bash\nsudo: shutdown: Access denied\n```")
-            return
         await ctx.send(
             "```bash\n$ sudo shutdown now\n"
             "Broadcast message: The system is going down NOW!\n```"

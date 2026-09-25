@@ -106,6 +106,7 @@ class Giveaways(commands.Cog, name="giveaways"):
                 for key, gw in list(data.items()):
                     if now >= gw["end_ts"]:
                         await self._finish_giveaway(gw, data)
+                        data.pop(key, None)
                 if data:
                     self._save(data)
             except Exception:
@@ -129,7 +130,7 @@ class Giveaways(commands.Cog, name="giveaways"):
             for gw in active:
                 remaining = int(gw["end_ts"] - time.time())
                 lines.append(
-                    f"• **{gw['prize']}** — {len(gw['entries'])} entries · ends in {_fmt_duration(max(remaining, 0))} · "
+                    f"• **{gw['prize']}** — {len(gw.get('entries') or [])} entries · ends in {_fmt_duration(max(remaining, 0))} · "
                     f"[link](https://discord.com/channels/{gw['guild_id']}/{gw['channel_id']}/{gw['message_id']})"
                 )
             embed.description = "\n".join(lines)

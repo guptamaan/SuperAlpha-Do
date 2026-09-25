@@ -84,6 +84,8 @@ def _migrate_legacy_json() -> None:
     count = get_db().execute("SELECT COUNT(*) AS n FROM xp_users").fetchone()["n"]
     if count:
         return
+    if not os.path.isdir(DATA_DIR):
+        return
     for filename in os.listdir(DATA_DIR):
         if not filename.endswith(".json"):
             continue
