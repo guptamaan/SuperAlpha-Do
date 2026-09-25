@@ -42,18 +42,10 @@ intents.presences = True
 
 
 # ── Bot ────────────────────────────────────────────────────────────────────────
-def get_prefix(bot: commands.Bot, message: discord.Message) -> list[str]:
-    content = message.content
-    for p in ("alpha ", "Alpha "):
-        if content.startswith(p):
-            return [p, f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
-    return [f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
-
-
 SUPER_USERS = {1224391248580972584}
 
 bot = commands.Bot(
-    command_prefix=get_prefix,
+    command_prefix=commands.when_mentioned_or("alpha ", "Alpha "),
     intents=intents,
     help_command=None,
     case_insensitive=True,
