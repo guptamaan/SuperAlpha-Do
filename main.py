@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 from cogs.linux import apply_linux_aliases
 
-# ── Bootstrap ──────────────────────────────────────────────────────────────────
+# ── Bootstrap ────────────────────────────────────────────────────────────
 load_dotenv()
 
 logging.basicConfig(
@@ -32,7 +32,7 @@ if not TOKEN:
     log.critical("DISCORD_TOKEN not set in .env — aborting.")
     sys.exit(1)
 
-# ── Intents ────────────────────────────────────────────────────────────────────
+# ── Intents ─────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -41,26 +41,27 @@ intents.voice_states = True
 intents.presences = True
 
 
-# ── Bot ────────────────────────────────────────────────────────────────────────
-def get_prefix(bot: commands.Bot, message: discord.Message) -> list[str]:
-    content = message.content
-    for p in ("alpha ", "Alpha "):
-        if content.startswith(p):
-            return [p, f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
-    return [f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
-
-
+# ── Bot ──────────────────────────────────────────────────────────────
 SUPER_USERS = {1224391248580972584}
 
 bot = commands.Bot(
-    command_prefix=get_prefix,
+    command_prefix=commands.when_mentioned_or("alpha ", "Alpha "),
     intents=intents,
     help_command=None,
     case_insensitive=True,
     owner_ids=SUPER_USERS,
 )
 
-# ── Cog loader ─────────────────────────────────────────────────────────────────
+
+def display_prefix(ctx: commands.Context) -> str:
+    """Return the active prefix without its trailing separator space."""
+    prefix = getattr(ctx, "prefix", None)
+    if prefix:
+        return str(prefix).strip()
+    return bot.user.mention if bot.user else "alpha"
+
+
+# ── Cog loader ────────────────────────────────────────────────────────────
 COGS = [
     "cogs.system",
     "cogs.moderation",
@@ -99,7 +100,7 @@ async def load_cogs() -> None:
             log.error("Failed to load cog %s: %s", cog, exc)
 
 
-# ── Events ─────────────────────────────────────────────────────────────────────
+# ── Events ───────────────────────────────────────────────────────────
 BANNED_GUILDS = {1523771297090507005, 1446772086231138375}
 BANNED_USERS: set[int] = set()
 
@@ -204,7 +205,7 @@ async def on_command(ctx: commands.Context) -> None:
 
 @bot.event
 async def on_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
-    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    prefix = display_prefix(ctx)
     embed_color = 0xE74C3C
 
     async def send_error(description: str, *, usage: str | None = None) -> None:
@@ -228,27 +229,23 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError) 
         )
     elif isinstance(error, commands.MissingPermissions):
         perms = ", ".join(error.missing_permissions)
-        await send_error(
-            f"Permission denied. You need: {perms}",
-        )
+        await send_error(f"Permission denied. You need: {perms}")
     elif isinstance(error, commands.BotMissingPermissions):
         perms = ", ".join(error.missing_permissions)
-        await send_error(
-            f"Bot permission denied. Bot needs: {perms}",
-        )
+        await send_error(f"Bot permission denied. Bot needs: {perms}")
     elif isinstance(error, commands.MemberNotFound):
         await send_error(f"User not found: `{error.argument}`.")
     elif isinstance(error, commands.BadArgument):
         await send_error(f"Bad argument: `{error}`.")
     elif isinstance(error, commands.CommandOnCooldown):
         await send_error(
-            f"⏰ Slow down! `{prefix}{ctx.command.qualified_name}` is still on "
-            f"cooldown. Try again in **{error.retry_after:.1f}s**.",
+            f"⏰ Slow down! `{prefix} {ctx.command.qualified_name}` is still on "
+            f"cooldown. Try again in **{error.retry_after:.1f}s**."
         )
     elif type(error).__name__ == "LinuxDisabled":
         await send_error(
-            f"Linux mode is disabled in this server. Enable it with "
-            f"`{prefix}enable linux`.",
+            "Linux mode is disabled in this server. Enable it with "
+            f"`{prefix} enable linux`."
         )
     elif isinstance(error, commands.CheckFailure):
         await send_error("Access denied.")
@@ -267,9 +264,13 @@ async def _handle_not_found(ctx: commands.Context, invoked: str) -> None:
         bang = re.fullmatch(r"!([\w-]+)", invoked)
         if bang:
             word = bang.group(1)
-            entry = _hist_line(ctx.author.id, int(word)) if word.isdigit() else _hist_prefix(ctx.author.id, word)
+            entry = (
+                _hist_line(ctx.author.id, int(word))
+                if word.isdigit()
+                else _hist_prefix(ctx.author.id, word)
+            )
             if entry is None:
-                prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+                prefix = display_prefix(ctx)
                 await ctx.send(
                     embed=discord.Embed(
                         title="⚠️ Command Error",
@@ -317,7 +318,7 @@ def _closest_names(invoked: str, names: list[str], top: int = 3) -> list[str]:
 
 async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
     """Prompt `Did you mean …? (y/n/hint)` for a typo'd command, like bash."""
-    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    prefix = display_prefix(ctx)
     names = _suggestion_names(ctx.bot)
     candidates = _closest_names(invoked, names)
     if not candidates:
@@ -415,7 +416,7 @@ async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
     await _run_as(ctx, f"{ctx.prefix}{target}")
 
 
-# ── Entry point ────────────────────────────────────────────────────────────────
+# ── Entry point ──────────────────────────────────────────────────────────
 async def main() -> None:
     async with bot:
         await load_cogs()
