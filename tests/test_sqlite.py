@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 import os
 
-import cogs.spam as spam
-import cogs.xp as xp
+import bot.cogs.spam as spam
+import bot.cogs.xp as xp
 
 from helpers import GUILD_ID
 

@@ -15,7 +15,9 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from cogs.linux import apply_linux_aliases
+from bot.cogs.linux import apply_linux_aliases
+from bot.config.settings import BANNED_GUILDS, BANNED_USERS
+from bot.core.bot import make_bot
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -32,61 +34,36 @@ if not TOKEN:
     log.critical("DISCORD_TOKEN not set in .env — aborting.")
     sys.exit(1)
 
-# ── Intents ────────────────────────────────────────────────────────────────────
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-intents.guilds = True
-intents.voice_states = True
-intents.presences = True
-
-
 # ── Bot ────────────────────────────────────────────────────────────────────────
-def get_prefix(bot: commands.Bot, message: discord.Message) -> list[str]:
-    content = message.content
-    for p in ("alpha ", "Alpha "):
-        if content.startswith(p):
-            return [p, f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
-    return [f"<@{bot.user.id}> ", f"<@!{bot.user.id}> "]
-
-
-SUPER_USERS = {1224391248580972584}
-
-bot = commands.Bot(
-    command_prefix=get_prefix,
-    intents=intents,
-    help_command=None,
-    case_insensitive=True,
-    owner_ids=SUPER_USERS,
-)
+bot = make_bot()
 
 # ── Cog loader ─────────────────────────────────────────────────────────────────
 COGS = [
-    "cogs.system",
-    "cogs.moderation",
-    "cogs.info",
-    "cogs.fun",
-    "cogs.music",
-    "cogs.musicgames",
-    "cogs.utility",
-    "cogs.games",
-    "cogs.ai",
-    "cogs.xp",
-    "cogs.tempvc",
-    "cogs.afk",
-    "cogs.welcomelogs",
-    "cogs.reaction_roles",
-    "cogs.clan_system",
-    "cogs.spectrum",
-    "cogs.journal",
-    "cogs.linux",
-    "cogs.automod",
-    "cogs.giveaways",
-    "cogs.shop",
-    "cogs.spam",
-    "cogs.distro",
-    "cogs.steal",
-    "cogs.suggestions",
+    "bot.cogs.system",
+    "bot.cogs.moderation",
+    "bot.cogs.info",
+    "bot.cogs.fun",
+    "bot.cogs.music",
+    "bot.cogs.musicgames",
+    "bot.cogs.utility",
+    "bot.cogs.games",
+    "bot.cogs.ai",
+    "bot.cogs.xp",
+    "bot.cogs.tempvc",
+    "bot.cogs.afk",
+    "bot.cogs.welcomelogs",
+    "bot.cogs.reaction_roles",
+    "bot.cogs.clan_system",
+    "bot.cogs.spectrum",
+    "bot.cogs.journal",
+    "bot.cogs.linux",
+    "bot.cogs.automod",
+    "bot.cogs.giveaways",
+    "bot.cogs.shop",
+    "bot.cogs.spam",
+    "bot.cogs.distro",
+    "bot.cogs.steal",
+    "bot.cogs.suggestions",
 ]
 
 
@@ -100,9 +77,6 @@ async def load_cogs() -> None:
 
 
 # ── Events ─────────────────────────────────────────────────────────────────────
-BANNED_GUILDS = {1523771297090507005, 1446772086231138375}
-BANNED_USERS: set[int] = set()
-
 
 @bot.event
 async def on_message(message: discord.Message) -> None:
@@ -262,7 +236,7 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError) 
 # ── Unknown-command handling: bash suggestions + history re-runs ──────────────
 async def _handle_not_found(ctx: commands.Context, invoked: str) -> None:
     if invoked.startswith("!") and len(invoked) > 1:
-        from cogs.journal import _hist_line, _hist_prefix, _run_as
+        from bot.cogs.journal import _hist_line, _hist_prefix, _run_as
 
         bang = re.fullmatch(r"!([\w-]+)", invoked)
         if bang:
@@ -288,7 +262,7 @@ def _suggestion_names(bot: commands.Bot) -> list[str]:
     for cmd in bot.walk_commands():
         names.update(cmd.aliases)
     try:
-        from cogs.linux import LINUX_ALIASES
+        from bot.cogs.linux import LINUX_ALIASES
 
         for group in LINUX_ALIASES.values():
             names.update(group)
@@ -342,7 +316,7 @@ async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
         except discord.HTTPException:
             pass
 
-    from cogs.journal import _run_as
+    from bot.cogs.journal import _run_as
 
     prompt = f"Did you mean: `{candidates[0]}`?  (y / n / hint)"
     body_lines = [

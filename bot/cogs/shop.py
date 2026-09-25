@@ -12,8 +12,8 @@ import os
 import discord
 from discord.ext import commands
 
-from cogs.checks import perms_or_developer
-from cogs.xp import load_user, save_user
+from bot.cogs.checks import perms_or_developer
+from bot.models.xp_store import load_user, save_user
 
 DATA_DIR = "data/shop"
 ITEMS_FILE = os.path.join(DATA_DIR, "items.json")

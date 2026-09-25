@@ -17,7 +17,7 @@ import aiohttp
 import discord
 from discord.ext import commands
 
-from cogs.checks import perms_or_developer
+from bot.cogs.checks import perms_or_developer
 
 NAME_MIN = 2
 NAME_MAX = 32

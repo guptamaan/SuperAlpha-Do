@@ -18,8 +18,9 @@ import unicodedata
 import discord
 from discord.ext import commands
 
-from cogs.music import build_filter_string, get_ffmpeg_opts
-from cogs.xp import award_game_xp, is_xp_enabled
+from bot.cogs.music import build_filter_string, get_ffmpeg_opts
+from bot.models.xp_store import is_xp_enabled
+from bot.services.leveling import award_game_xp
 
 PREVIEW_SECONDS = 8
 GUESS_WINDOW = 30

@@ -4,7 +4,6 @@ Commands: poll, remind, calc, rand, wiki, weather, base64, hash, timestamp,
           embed, say, announce, urban, translate, shorten, define
 """
 
-import ast
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -15,45 +14,12 @@ import datetime
 import aiohttp
 import re
 import random
-from typing import Any
 from urllib.parse import quote
 
-from cogs.checks import perms_or_developer
+from bot.cogs.checks import perms_or_developer
+from bot.services.calculator import _safe_eval_math_expression
 
-
-_ALLOWED_BINOPS: dict[type[ast.operator], Any] = {
-    ast.Add: lambda a, b: a + b,
-    ast.Sub: lambda a, b: a - b,
-    ast.Mult: lambda a, b: a * b,
-    ast.Div: lambda a, b: a / b,
-    ast.Mod: lambda a, b: a % b,
-    ast.Pow: lambda a, b: a**b,
-}
-_ALLOWED_UNARYOPS: dict[type[ast.unaryop], Any] = {
-    ast.UAdd: lambda a: +a,
-    ast.USub: lambda a: -a,
-}
-
-
-def _safe_eval_math_expression(expression: str) -> float | int:
-    expr = expression.strip()
-    if not re.fullmatch(r"[0-9+\-*/(). %^\s]+", expr):
-        raise ValueError("invalid expression characters")
-    expr = expr.replace("^", "**")
-    tree = ast.parse(expr, mode="eval")
-
-    def eval_node(node: ast.AST) -> float | int:
-        if isinstance(node, ast.Expression):
-            return eval_node(node.body)
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            return node.value
-        if isinstance(node, ast.UnaryOp) and type(node.op) in _ALLOWED_UNARYOPS:
-            return _ALLOWED_UNARYOPS[type(node.op)](eval_node(node.operand))
-        if isinstance(node, ast.BinOp) and type(node.op) in _ALLOWED_BINOPS:
-            return _ALLOWED_BINOPS[type(node.op)](eval_node(node.left), eval_node(node.right))
-        raise ValueError("unsupported expression")
-
-    return eval_node(tree)
+__all__ = ["Utility", "_safe_eval_math_expression"]
 
 
 class Utility(commands.Cog, name="utility"):

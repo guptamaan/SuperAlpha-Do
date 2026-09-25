@@ -13,7 +13,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from cogs.checks import perms_or_developer
+from bot.cogs.checks import perms_or_developer
 
 
 _warnings: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))

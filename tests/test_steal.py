@@ -9,7 +9,7 @@ import aiohttp
 import discord
 import pytest
 
-from cogs.steal import Steal, _sanitise_name
+from bot.cogs.steal import Steal, _sanitise_name
 
 from helpers import (
     TEXT_CHANNEL_ID,

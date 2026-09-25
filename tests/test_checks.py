@@ -13,13 +13,13 @@ import discord
 import pytest
 from discord.ext import commands
 
-import cogs.checks as checks
-import cogs.linux as linux_cog
-import cogs.steal as steal_cog
-import cogs.system as system_cog
-import cogs.tempvc as tempvc_cog
-import cogs.xp as xp_cog
-from cogs.shop import Shop
+import bot.cogs.checks as checks
+import bot.cogs.linux as linux_cog
+import bot.cogs.steal as steal_cog
+import bot.cogs.system as system_cog
+import bot.cogs.tempvc as tempvc_cog
+import bot.cogs.xp as xp_cog
+from bot.cogs.shop import Shop
 from discord.ext.commands import CommandError
 
 from helpers import (
@@ -188,7 +188,7 @@ async def test_shop_add_requires_admin(bot):
 
 # ── Spam admin gating (inline check) ──────────────────────────────────────────
 async def test_spam_admin_ok_paths(bot):
-    cog = __import__("cogs.spam", fromlist=["SpamGame"]).SpamGame(bot)
+    cog = __import__("bot.cogs.spam", fromlist=["SpamGame"]).SpamGame(bot)
     guild = make_guild()
     admin = make_member(USER_IDS["admin"], guild=guild, permissions=make_permissions(administrator=True))
     member = make_member(USER_IDS["member"], guild=guild)

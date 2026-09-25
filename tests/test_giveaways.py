@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from discord.ext import commands
 
-import cogs.giveaways as giveaways
-from cogs.giveaways import Giveaways, _fmt_duration, _parse_duration
+import bot.cogs.giveaways as giveaways
+from bot.cogs.giveaways import Giveaways, _fmt_duration, _parse_duration
 
 from helpers import (
     GUILD_ID,

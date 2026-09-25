@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import cogs.spam as spam
-from cogs.spam import SpamGame
+import bot.cogs.spam as spam
+from bot.cogs.spam import SpamGame
 
 from helpers import (
     TEXT_CHANNEL_ID,

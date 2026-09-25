@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 
-from cogs.checks import perms_or_developer
+from bot.cogs.checks import perms_or_developer
 
 CONFIG_DIR = "data/automod"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")

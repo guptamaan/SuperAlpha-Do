@@ -12,10 +12,10 @@ import pathlib
 import discord
 from discord.ext import commands
 
-from cogs.automod import get_guild_config as _get_automod_config
-from cogs.automod import set_guild_config as _set_automod_config
-from cogs.checks import perms_or_developer
-from cogs.distro import set_enabled as _set_distro_enabled
+from bot.cogs.automod import get_guild_config as _get_automod_config
+from bot.cogs.automod import set_guild_config as _set_automod_config
+from bot.cogs.checks import perms_or_developer
+from bot.cogs.distro import set_enabled as _set_distro_enabled
 
 MODE_FILE = pathlib.Path("data/linux_mode.json")
 MODE_DIR = MODE_FILE.parent

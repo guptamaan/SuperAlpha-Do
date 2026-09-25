@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
-import cogs.xp as xp
-from cogs.xp import XP
+import bot.cogs.xp as xp
+from bot.cogs.xp import XP
 
 from helpers import (
     GUILD_ID,
@@ -143,13 +143,13 @@ async def test_bet_win_and_loss(bot, monkeypatch):
     data["sp"] = 100
     xp.save_user(author.id, data)
 
-    monkeypatch.setattr("cogs.xp.random.random", lambda: 0.1)
+    monkeypatch.setattr("bot.cogs.xp.random.random", lambda: 0.1)
     ctx = make_ctx(bot, author=author, guild=guild)
     await cog.bet.callback(cog, ctx, 40)
     assert ctx.send.await_args.kwargs["embed"].author.name == "🎉 You Won!"
     assert xp.load_user(author.id)["sp"] == 140
 
-    monkeypatch.setattr("cogs.xp.random.random", lambda: 0.9)
+    monkeypatch.setattr("bot.cogs.xp.random.random", lambda: 0.9)
     ctx = make_ctx(bot, author=author, guild=guild)
     await cog.bet.callback(cog, ctx, 40)
     assert ctx.send.await_args.kwargs["embed"].author.name == "😢 You Lost!"

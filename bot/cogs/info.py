@@ -10,7 +10,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from cogs.system import INVITE_URL, SUPPORT_SERVER
+from bot.cogs.system import INVITE_URL, SUPPORT_SERVER
 
 
 def _fmt_dt(dt: datetime.datetime | None) -> str:
