@@ -16,7 +16,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from cogs.linux import apply_linux_aliases
-
+import config 
 # ── Bootstrap ──────────────────────────────────────────────────────────────────
 load_dotenv()
 
@@ -42,14 +42,14 @@ intents.presences = True
 
 
 # ── Bot ────────────────────────────────────────────────────────────────────────
-SUPER_USERS = {1224391248580972584}
+
 
 bot = commands.Bot(
-    command_prefix=commands.when_mentioned_or("alpha ", "Alpha "),
+    command_prefix=commands.when_mentioned_or(*config.PREFIXES),
     intents=intents,
     help_command=None,
     case_insensitive=True,
-    owner_ids=SUPER_USERS,
+    owner_ids=config.SUPER_USERS,
 )
 
 # ── Cog loader ─────────────────────────────────────────────────────────────────
@@ -91,8 +91,17 @@ async def load_cogs() -> None:
             log.error("Failed to load cog %s: %s", cog, exc)
 
 
+
+# ── Functions ─────────────────────────────────────────────────────────────────────
+
+def get_prefix(ctx: commands.Context) -> str:
+    return str(
+        getattr(ctx, "prefix", config.PREFIXES[0])
+    ).strip() or config.PREFIXES[0].strip()
+
+
 # ── Events ─────────────────────────────────────────────────────────────────────
-BANNED_GUILDS = {1523771297090507005, 1446772086231138375}
+
 BANNED_USERS: set[int] = set()
 
 
@@ -109,7 +118,7 @@ async def on_message(message: discord.Message) -> None:
 
 @bot.event
 async def on_guild_join(guild: discord.Guild) -> None:
-    if guild.id in BANNED_GUILDS:
+    if guild.id in config.BANNED_GUILDS:
         log.info("Joined banned guild: %s (ID: %s) — leaving...", guild.name, guild.id)
         try:
             await guild.leave()
@@ -120,7 +129,7 @@ async def on_guild_join(guild: discord.Guild) -> None:
 
 @bot.event
 async def on_ready() -> None:
-    for guild_id in BANNED_GUILDS:
+    for guild_id in config.BANNED_GUILDS:
         try:
             guild = await bot.fetch_guild(guild_id)
             log.info(
@@ -196,7 +205,7 @@ async def on_command(ctx: commands.Context) -> None:
 
 @bot.event
 async def on_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
-    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    prefix = get_prefix(ctx)
     embed_color = 0xE74C3C
 
     async def send_error(description: str, *, usage: str | None = None) -> None:
@@ -261,7 +270,7 @@ async def _handle_not_found(ctx: commands.Context, invoked: str) -> None:
             word = bang.group(1)
             entry = _hist_line(ctx.author.id, int(word)) if word.isdigit() else _hist_prefix(ctx.author.id, word)
             if entry is None:
-                prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+                prefix = get_prefix(ctx)
                 await ctx.send(
                     embed=discord.Embed(
                         title="⚠️ Command Error",
@@ -309,7 +318,7 @@ def _closest_names(invoked: str, names: list[str], top: int = 3) -> list[str]:
 
 async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
     """Prompt `Did you mean …? (y/n/hint)` for a typo'd command, like bash."""
-    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    prefix = get_prefix(ctx)
     names = _suggestion_names(ctx.bot)
     candidates = _closest_names(invoked, names)
     if not candidates:
