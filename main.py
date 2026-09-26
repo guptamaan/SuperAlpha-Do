@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 from bot.cogs.linux import apply_linux_aliases
 from bot.config.settings import BANNED_GUILDS, BANNED_USERS
-from bot.core.bot import make_bot
+from bot.core.bot import get_prefix, make_bot
 
 # ── Bootstrap ──────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -178,7 +178,7 @@ async def on_command(ctx: commands.Context) -> None:
 
 @bot.event
 async def on_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
-    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    prefix = get_prefix(ctx)
     embed_color = 0xE74C3C
 
     async def send_error(description: str, *, usage: str | None = None) -> None:
@@ -243,7 +243,7 @@ async def _handle_not_found(ctx: commands.Context, invoked: str) -> None:
             word = bang.group(1)
             entry = _hist_line(ctx.author.id, int(word)) if word.isdigit() else _hist_prefix(ctx.author.id, word)
             if entry is None:
-                prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+                prefix = get_prefix(ctx)
                 await ctx.send(
                     embed=discord.Embed(
                         title="⚠️ Command Error",
@@ -291,7 +291,7 @@ def _closest_names(invoked: str, names: list[str], top: int = 3) -> list[str]:
 
 async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
     """Prompt `Did you mean …? (y/n/hint)` for a typo'd command, like bash."""
-    prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
+    prefix = get_prefix(ctx)
     names = _suggestion_names(ctx.bot)
     candidates = _closest_names(invoked, names)
     if not candidates:
