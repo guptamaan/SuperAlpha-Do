@@ -30,6 +30,6 @@ guilds.txt
 .DS_Store
 Thumbs.db
 
-# zips & tar.gz
+# Archives
 *.zip
 *.tar.gz
