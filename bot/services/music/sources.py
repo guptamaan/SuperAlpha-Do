@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import os
+from urllib.parse import urlsplit
 
 import yt_dlp
 
@@ -38,26 +39,34 @@ def get_ytdl_opts() -> dict:
     return opts
 
 
+def _hostname(url: str) -> str:
+    """The lowercased hostname of a URL, or ``""`` when unparseable."""
+    try:
+        return (urlsplit(url).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def _is_domain(host: str, domain: str) -> bool:
+    return host == domain or host.endswith(f".{domain}")
+
+
 def is_spotify_url(url: str) -> bool:
-    return "spotify.com" in url.lower()
+    return _is_domain(_hostname(url), "spotify.com")
 
 
 def is_apple_url(url: str) -> bool:
-    url_lower = url.lower()
-    return "music.apple.com" in url_lower or "itunes.apple.com" in url_lower
+    host = _hostname(url)
+    return host in {"music.apple.com", "itunes.apple.com"}
 
 
 def is_soundcloud_url(url: str) -> bool:
-    return "soundcloud.com" in url.lower()
+    return _is_domain(_hostname(url), "soundcloud.com")
 
 
 def is_playable_url(url: str) -> bool:
-    supported = [
-        "youtube.com", "youtu.be", "youtube.com/watch",
-        "soundcloud.com", "spotify.com", "music.apple.com",
-        "itunes.apple.com", "bandcamp.com", "twitch.tv",
-    ]
-    return any(s in url.lower() for s in supported)
+    supported = ("youtube.com", "youtu.be", "soundcloud.com", "spotify.com", "apple.com", "bandcamp.com", "twitch.tv")
+    return any(_is_domain(_hostname(url), d) for d in supported)
 
 
 def youtube_search_query(query: str) -> str:
