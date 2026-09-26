@@ -6,13 +6,23 @@ every cog can depend on it without risking import cycles).
 
 from __future__ import annotations
 
+import os
+
 import discord
+from dotenv import load_dotenv
+
+# Load .env so the overridable values below (links, handles, repo) can be set
+# from environment variables without touching code.
+load_dotenv()
 
 # ── Identity ───────────────────────────────────────────────────────────────────
 SUPER_USERS: set[int] = {1224391248580972584}
-INVITE_URL = "https://discord.com/oauth2/authorize?client_id=1472581750810083339"
-SUPPORT_SERVER = "https://discord.gg/Z2NXkwkFK3"
-OWNER_HANDLE = "@r4ve_x"
+INVITE_URL = os.getenv(
+    "INVITE_URL",
+    "https://discord.com/oauth2/authorize?client_id=1545113823848038470&permissions=8&integration_type=0&scope=bot",
+)
+SUPPORT_SERVER = os.getenv("SUPPORT_SERVER", "https://discord.gg/Z2NXkwkFK3")
+OWNER_HANDLE = os.getenv("OWNER_HANDLE", "@r4ve_x")
 
 # ── Command prefix ─────────────────────────────────────────────────────────────
 DEFAULT_PREFIXES: tuple[str, ...] = ("alpha ", "Alpha ")

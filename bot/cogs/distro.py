@@ -260,8 +260,6 @@ class Distro(commands.Cog, name="distro"):
             return
         r["solved"] = True
         self.active.pop(channel_id, None)
-        if r.get("task"):
-            r["task"].cancel()
         try:
             await r["message"].delete()
         except Exception:
@@ -341,7 +339,7 @@ class Distro(commands.Cog, name="distro"):
         color = TIER_COLORS.get(r["tier"], 0x2ECC71)
         description = (
             f"{winner.mention} identified **{r['display']}** "
-            f"({r['tier']} difficulty" + (f", {hints_used} hint used" if hints_used else "") + ") "
+            f"({r['tier']} difficulty" + (f", {hints_used} hint{'s' if hints_used != 1 else ''} used" if hints_used else "") + ") "
             f"and earned **{xp} XP** and **{sp} SP**."
         )
         if new_level > prev_level:

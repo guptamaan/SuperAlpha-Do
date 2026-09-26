@@ -215,7 +215,7 @@ class XP(commands.Cog, name="xp"):
 
     @commands.command(name="rank", aliases=["profile", "stats"])
     async def rank(self, ctx: commands.Context, *, member: discord.Member = None) -> None:
-        """View your rank and stats. Usage: sudo rank [user]"""
+        """View your rank and stats. Usage: alpha rank [user]"""
         member = member or ctx.author
         data = load_user(member.id)
         xp_in_level, xp_needed, level = get_level_progress(data["xp"])
@@ -243,7 +243,7 @@ class XP(commands.Cog, name="xp"):
 
     @commands.command(name="leaderboard", aliases=["lb", "top"])
     async def leaderboard(self, ctx: commands.Context, type: str = "xp") -> None:
-        """View the leaderboard. Usage: sudo leaderboard [xp|sp|messages|vc]"""
+        """View the leaderboard. Usage: alpha leaderboard [xp|sp|messages|vc]"""
         type_key = type.lower()
         if type_key == "sp":
             title = "💰 SP Leaderboard"
@@ -289,12 +289,12 @@ class XP(commands.Cog, name="xp"):
                 lines.append(f"{medal} **{name}** — {data['level']} lvl — {val} {field_name}")
 
         embed.description = "\n".join(lines)
-        embed.set_footer(text=f"Showing top {len(top)} | Use 'sudo lb sp/messages/vc' for different rankings")
+        embed.set_footer(text=f"Showing top {len(top)} | Use 'alpha lb sp/messages/vc' for different rankings")
         await ctx.send(embed=embed)
 
     @commands.command(name="daily", aliases=["claim"])
     async def daily(self, ctx: commands.Context) -> None:
-        """Claim your daily SP reward. Usage: sudo daily"""
+        """Claim your daily SP reward. Usage: alpha daily"""
         user_id = ctx.author.id
         data = load_user(user_id)
 
@@ -331,7 +331,7 @@ class XP(commands.Cog, name="xp"):
 
     @commands.command(name="give", aliases=["pay", "transfer"])
     async def give(self, ctx: commands.Context, member: discord.Member, amount: int) -> None:
-        """Give SP to another user. Usage: sudo give @user <amount>"""
+        """Give SP to another user. Usage: alpha give @user <amount>"""
         if member.bot:
             embed = self._make_embed("❌ Invalid User", 0xE74C3C, "Cannot give SP to bots")
             await ctx.send(embed=embed)
@@ -367,7 +367,7 @@ class XP(commands.Cog, name="xp"):
 
     @commands.command(name="bet")
     async def bet(self, ctx: commands.Context, amount: int) -> None:
-        """Bet SP for a chance to double it. Usage: sudo bet <amount>"""
+        """Bet SP for a chance to double it. Usage: alpha bet <amount>"""
         if amount <= 0:
             embed = self._make_embed("❌ Invalid Amount", 0xE74C3C, "Amount must be positive")
             await ctx.send(embed=embed)
@@ -398,7 +398,7 @@ class XP(commands.Cog, name="xp"):
     @commands.command(name="work")
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def work(self, ctx: commands.Context) -> None:
-        """Work to earn SP (1 hour cooldown). Usage: sudo work"""
+        """Work to earn SP (1 hour cooldown). Usage: alpha work"""
         user_data = load_user(ctx.author.id)
         reward = random.randint(50, 200)
         user_data["sp"] += reward
@@ -484,14 +484,14 @@ class XP(commands.Cog, name="xp"):
     @commands.command(name="levelchannel", aliases=["lvlchannel", "levelupchannel"])
     @perms_or_developer(administrator=True)
     async def levelchannel(self, ctx: commands.Context, action: str = None, channel: discord.TextChannel = None) -> None:
-        """Set the channel for level-up messages. Usage: sudo levelchannel [set #channel|off|status]"""
+        """Set the channel for level-up messages. Usage: alpha levelchannel [set #channel|off|status]"""
         if not action:
             current = get_level_channel(ctx.guild.id)
             if current:
                 ch = ctx.guild.get_channel(current)
                 desc = f"Level-up messages are sent to **{ch.mention if ch else f'<#{current}>'}**."
             else:
-                desc = "Level-up messages are sent where the user last chatted. Set a channel with `sudo levelchannel set #channel`."
+                desc = "Level-up messages are sent where the user last chatted. Set a channel with `alpha levelchannel set #channel`."
             embed = discord.Embed(color=0x9B59B6)
             embed.set_author(name="📣 Level-Up Channel")
             embed.description = desc
@@ -502,7 +502,7 @@ class XP(commands.Cog, name="xp"):
 
         if action in ["set", "channel"]:
             if channel is None:
-                embed = self._make_embed("❌ Missing Channel", 0xE74C3C, "Usage: `sudo levelchannel set #channel`")
+                embed = self._make_embed("❌ Missing Channel", 0xE74C3C, "Usage: `alpha levelchannel set #channel`")
                 await ctx.send(embed=embed)
                 return
             set_level_channel(ctx.guild.id, channel.id)
@@ -519,7 +519,7 @@ class XP(commands.Cog, name="xp"):
             await ctx.send(embed=embed)
 
         else:
-            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Usage: `sudo levelchannel set #channel | off | status`")
+            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Usage: `alpha levelchannel set #channel | off | status`")
             await ctx.send(embed=embed)
 
     @levelchannel.error
@@ -531,7 +531,7 @@ class XP(commands.Cog, name="xp"):
     @commands.command(name="xpsystem")
     @perms_or_developer(administrator=True)
     async def xpsystem(self, ctx: commands.Context, action: str = None) -> None:
-        """Enable/disable XP system. Usage: sudo xpsystem [enable|disable|status]"""
+        """Enable/disable XP system. Usage: alpha xpsystem [enable|disable|status]"""
         if not action:
             enabled = is_xp_enabled(ctx.guild.id)
             status = "✅ Enabled" if enabled else "❌ Disabled"
@@ -558,7 +558,7 @@ class XP(commands.Cog, name="xp"):
             await ctx.send(embed=embed)
 
         else:
-            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Usage: `sudo xpsystem [enable|disable|status]`")
+            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Usage: `alpha xpsystem [enable|disable|status]`")
             await ctx.send(embed=embed)
 
     @xpsystem.error
@@ -570,7 +570,7 @@ class XP(commands.Cog, name="xp"):
     @commands.command(name="addxp", aliases=["givexp", "grantxp"], hidden=True)
     @commands.is_owner()
     async def addxp(self, ctx: commands.Context, member: discord.Member, amount: int) -> None:
-        """[Owner] Add or remove XP for a user. Usage: sudo addxp <user> <amount>"""
+        """[Owner] Add or remove XP for a user. Usage: alpha addxp <user> <amount>"""
         if amount == 0:
             embed = self._make_embed("❌ Invalid Amount", 0xE74C3C, "Amount must not be zero")
             await ctx.send(embed=embed)

@@ -3,12 +3,12 @@ cogs/journal.py — Global command journal (`journalctl`).
 
 Records every command invocation across every server into a persistent
 journal (data/journal.db), masking sensitive information (AI prompts,
-hashed values, message content, raw snowflake IDs). `sudo journalctl` shows
+hashed values, message content, raw snowflake IDs). `alpha journalctl` shows
 the last 10 commands and accepts filters such as `--music` for a category
 summary.
 
-Prefix  usage: sudo journalctl [count] [--<filter> ...]
-Example:      sudo journalctl --music
+Prefix  usage: alpha journalctl [count] [--<filter> ...]
+Example:      alpha journalctl --music
 """
 
 import hashlib
@@ -459,9 +459,9 @@ def _render(entries: list[dict], count: int, filters: list[str]) -> str:
         for f in filters:
             matched |= COG_FILTERS.get(f, set())
         entries = [e for e in entries if e.get("cog") in matched]
-    servers = len({e.get("gid") for e in entries})
+    servers = len({e.get("gid") for e in entries if e.get("gid")})
     fmt_filters = " ".join(f"--{f}" for f in filters) or "--all"
-    lines = [f"$ sudo journalctl {fmt_filters}"]
+    lines = [f"$ alpha journalctl {fmt_filters}"]
     lines.append(
         f"-- last {min(count, len(entries))} of {len(entries)} "
         f"· {servers} server{'s' if servers != 1 else ''} --"
@@ -475,7 +475,7 @@ def _render(entries: list[dict], count: int, filters: list[str]) -> str:
         guild = (e.get("guild") or "DM")[:12]
         user = (e.get("user") or "?")[:12]
         cog = (e.get("cog") or "?")[:4].upper()
-        kind = "sudo " if e.get("kind") == "sudo" else "slash"
+        kind = "alpha " if e.get("kind") == "sudo" else "slash"
         line = (
             f"{when}  {guild:<12} {user:<12} {e.get('uid', '????'):<11} "
             f"{kind:<6}{cog:<5} {e.get('cmd', '?'):<24} {_format_args(e)}"
@@ -541,7 +541,7 @@ class Journal(commands.Cog, name="journal"):
     # ── journalctl ─────────────────────────────────────────────────────────────
     @commands.command(name="journalctl")
     async def journalctl(self, ctx: commands.Context, *parts: str) -> None:
-        """Show the global command journal. Usage: sudo journalctl [count] [--music]"""
+        """Show the global command journal. Usage: alpha journalctl [count] [--music]"""
         count = DEFAULT_SHOW
         filters: list[str] = []
         for part in parts:
@@ -578,11 +578,11 @@ class Journal(commands.Cog, name="journal"):
 
         text = _render(entries, count, filters)
         embed = discord.Embed(
-            title="📜  sudo journalctl",
+            title="📜  alpha journalctl",
             description=f"```bash\n{text}\n```",
             color=0x1ABC9C,
         )
-        embed.set_footer(text="sudo journalctl [count] --<music|ai|games|…> · all commands are masked")
+        embed.set_footer(text="alpha journalctl [count] --<music|ai|games|…> · all commands are masked")
         await ctx.send(embed=embed)
 
     def _make_embed(self, title: str, color: int, description: str = "") -> discord.Embed:
@@ -595,7 +595,7 @@ class Journal(commands.Cog, name="journal"):
     # ── history ────────────────────────────────────────────────────────────────
     @commands.command(name="history", aliases=["hist"])
     async def history(self, ctx: commands.Context, count: int = HISTORY_SHOW) -> None:
-        """Show your recent commands with line numbers. Usage: sudo history [count]"""
+        """Show your recent commands with line numbers. Usage: alpha history [count]"""
         rows = _hist_recent(ctx.author.id, count)
         prefix = str(getattr(ctx, "prefix", "alpha")).strip() or "alpha"
         if not rows:
@@ -623,7 +623,7 @@ class Journal(commands.Cog, name="journal"):
     # ── !! ──────────────────────────────────────────────────────────────────
     @commands.command(name="!!")
     async def bangbang(self, ctx: commands.Context) -> None:
-        """Re-run your last command. Usage: sudo !!"""
+        """Re-run your last command. Usage: alpha !!"""
         entry = _hist_last(ctx.author.id)
         if entry is None:
             embed = self._make_embed(

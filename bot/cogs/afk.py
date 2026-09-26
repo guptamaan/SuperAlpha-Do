@@ -200,7 +200,7 @@ class AFK(commands.Cog, name="afk"):
 
     @commands.command(name="afk")
     async def afk(self, ctx: commands.Context, *, reason: str = "AFK") -> None:
-        """Set yourself as AFK. Usage: sudo afk [reason]"""
+        """Set yourself as AFK. Usage: alpha afk [reason]"""
         afk_data = load_afk()
         user_id = str(ctx.author.id)
 
@@ -234,7 +234,7 @@ class AFK(commands.Cog, name="afk"):
 
     @commands.command(name="afklist", aliases=["whosafk"])
     async def afklist(self, ctx: commands.Context) -> None:
-        """List all AFK users. Usage: sudo afklist"""
+        """List all AFK users. Usage: alpha afklist"""
         afk_data = load_afk()
 
         if not afk_data:
@@ -250,7 +250,7 @@ class AFK(commands.Cog, name="afk"):
             lines.append(f"• **{info.get('name', 'Unknown')}** — *{reason}* ({duration} ago)")
 
         embed = discord.Embed(color=0xF39C12)
-        embed.set_author(name=f"📴 AFK List ({len(afk_data)} users)")
+        embed.set_author(name=f"📴 AFK List ({len(afk_data)} user{'s' if len(afk_data) != 1 else ''})")
         embed.description = "\n".join(lines)
         await ctx.send(embed=embed)
 

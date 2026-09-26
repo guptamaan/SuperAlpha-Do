@@ -129,10 +129,8 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
 
         if not config.get("logs_enabled") or not config.get("logs_channel"):
             return
-        if not config.get("log_roles"):
-            return
 
-        if before.roles != after.roles:
+        if before.roles != after.roles and config.get("log_roles"):
             channel = before.guild.get_channel(config["logs_channel"])
             if not channel:
                 return
@@ -284,7 +282,7 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
     @commands.command(name="welcomesetup")
     @perms_or_developer(administrator=True)
     async def welcomesetup(self, ctx: commands.Context, channel: discord.TextChannel = None, *, message: str = None) -> None:
-        """Setup welcome message. Usage: sudo welcomesetup #channel Welcome {user}!"""
+        """Setup welcome message. Usage: alpha welcomesetup #channel Welcome {user}!"""
         if not channel:
             channel = ctx.channel
 
@@ -305,7 +303,7 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
     @commands.command(name="welcomedisable")
     @perms_or_developer(administrator=True)
     async def welcomedisable(self, ctx: commands.Context) -> None:
-        """Disable welcome messages. Usage: sudo welcomedisable"""
+        """Disable welcome messages. Usage: alpha welcomedisable"""
         config = get_guild_config(ctx.guild.id)
         config["welcome_enabled"] = False
         save_guild_config(ctx.guild.id, config)
@@ -314,9 +312,9 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
     @commands.command(name="logsetup")
     @perms_or_developer(administrator=True)
     async def logsetup(self, ctx: commands.Context, channel: discord.TextChannel = None) -> None:
-        """Setup logging channel. Usage: sudo logsetup #channel"""
+        """Setup logging channel. Usage: alpha logsetup #channel"""
         if not channel:
-            await ctx.send(embed=self._make_embed("❌ No Channel", 0xE74C3C, "Please mention a channel: `sudo logsetup #channel`"))
+            await ctx.send(embed=self._make_embed("❌ No Channel", 0xE74C3C, "Please mention a channel: `alpha logsetup #channel`"))
             return
 
         config = get_guild_config(ctx.guild.id)
@@ -333,7 +331,7 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
     @commands.command(name="logdisable")
     @perms_or_developer(administrator=True)
     async def logdisable(self, ctx: commands.Context) -> None:
-        """Disable logging. Usage: sudo logdisable"""
+        """Disable logging. Usage: alpha logdisable"""
         config = get_guild_config(ctx.guild.id)
         config["logs_enabled"] = False
         save_guild_config(ctx.guild.id, config)
@@ -342,7 +340,7 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
     @commands.command(name="logconfig")
     @perms_or_developer(administrator=True)
     async def logconfig(self, ctx: commands.Context) -> None:
-        """View current logging configuration. Usage: sudo logconfig"""
+        """View current logging configuration. Usage: alpha logconfig"""
         config = get_guild_config(ctx.guild.id)
 
         welcome_status = "✅ Enabled" if config.get("welcome_enabled") else "❌ Disabled"
@@ -367,17 +365,17 @@ class WelcomeLogs(commands.Cog, name="welcomelogs"):
     @welcomesetup.error
     async def welcomesetup_error(self, ctx: commands.Context, error) -> None:
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission."))
+            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permissions."))
 
     @logsetup.error
     async def logsetup_error(self, ctx: commands.Context, error) -> None:
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission."))
+            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permissions."))
 
     @logconfig.error
     async def logconfig_error(self, ctx: commands.Context, error) -> None:
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission."))
+            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permissions."))
 
 
 async def setup(bot: commands.Bot) -> None:

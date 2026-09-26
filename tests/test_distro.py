@@ -228,7 +228,7 @@ async def test_award_win_hint_penalty(bot):
     embed = channel.send.await_args.kwargs["embed"]
     assert "**9 XP**" in embed.description
     assert "**2 SP**" in embed.description
-    assert "(medium difficulty, 2 hint used)" in embed.description
+    assert "(medium difficulty, 2 hints used)" in embed.description
     assert "LEVEL UP" not in embed.description
 
 

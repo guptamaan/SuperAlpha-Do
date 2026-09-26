@@ -32,6 +32,7 @@ class GuildPlayer:
         self.last_track: Track | None = None
         self.volume: float = 1.0
         self.loop: bool = False
+        self.queue_loop: bool = False
         self.autoplay: bool = False
         self.bassboost: bool = False
         self.nightcore: bool = False

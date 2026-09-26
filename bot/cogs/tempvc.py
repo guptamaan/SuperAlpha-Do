@@ -70,7 +70,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
     @commands.command(name="createvc", aliases=["makvc", "makevc"])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def createvc(self, ctx: commands.Context, *, name: str = "My VC") -> None:
-        """Create a temporary voice channel. Usage: sudo createvc [name]"""
+        """Create a temporary voice channel. Usage: alpha createvc [name]"""
         if not ctx.author.voice:
             embed = self._make_embed("❌ Not in VC", 0xE74C3C, "Join a voice channel first")
             await ctx.send(embed=embed)
@@ -104,12 +104,12 @@ class TempVCManager(commands.Cog, name="tempvc"):
         embed.set_author(name="🔊 VC Created")
         embed.description = f"**{name[:50]}** created!"
         embed.add_field(name="Owner", value=ctx.author.mention, inline=True)
-        embed.add_field(name="Commands", value="`sudo vc name` `sudo vc limit`\n`sudo vc lock` `sudo vc kick`\n`sudo vc delete`", inline=True)
+        embed.add_field(name="Commands", value="`alpha vc name` `alpha vc limit`\n`alpha vc lock` `alpha vc kick`\n`alpha vc delete`", inline=True)
         await ctx.send(embed=embed)
 
     @commands.command(name="vc", aliases=["tempvc", "voice"])
     async def vc(self, ctx: commands.Context, action: str = None, *, value: str = None) -> None:
-        """Manage your temp VC. Usage: sudo vc [name|limit|lock|unlock|kick|delete] [value]"""
+        """Manage your temp VC. Usage: alpha vc [name|limit|lock|unlock|kick|claim|invite|ban|unban|delete] [value]"""
         if not ctx.author.voice:
             embed = self._make_embed("❌ Not in VC", 0xE74C3C, "Join a voice channel first")
             await ctx.send(embed=embed)
@@ -126,7 +126,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
             embed.add_field(name="Limit", value=f"{vc.user_limit or 'None'}", inline=True)
             embed.add_field(name="Status", value="🔒 Locked" if (vc and vc.locked) else "🔓 Open", inline=True)
             if vc and self._is_owner(vc, ctx.author.id):
-                embed.add_field(name="Commands", value="`sudo vc name <name>`\n`sudo vc limit <0-99>`\n`sudo vc lock/unlock`\n`sudo vc kick @user`\n`sudo vc delete`", inline=False)
+                embed.add_field(name="Commands", value="`alpha vc name <name>`\n`alpha vc limit <0-99>`\n`alpha vc lock/unlock`\n`alpha vc kick @user`\n`alpha vc delete`", inline=False)
             await ctx.send(embed=embed)
             return
 
@@ -141,14 +141,14 @@ class TempVCManager(commands.Cog, name="tempvc"):
             embed = self._make_embed(
                 "❌ Not a Temp VC", 0xE74C3C,
                 "This isn't a temporary voice channel owned by you. "
-                "Use `sudo vc claim` to take ownership of an empty channel.",
+                "Use `alpha vc claim` to take ownership of an empty channel.",
             )
             await ctx.send(embed=embed)
             return
 
         if action == "name":
             if not value:
-                embed = self._make_embed("❌ No Name", 0xE74C3C, "Usage: `sudo vc name <new name>`")
+                embed = self._make_embed("❌ No Name", 0xE74C3C, "Usage: `alpha vc name <new name>`")
                 await ctx.send(embed=embed)
                 return
             new_name = value.strip()
@@ -156,14 +156,14 @@ class TempVCManager(commands.Cog, name="tempvc"):
                 await channel.edit(name=new_name[:100])
                 if vc:
                     vc.name = new_name[:100]
-                embed = self._make_embed("✏️ Renamed", 0x2ECC71, f"Channel renamed to **{new_name[:50]}**")
+                embed = self._make_embed("✏️ Renamed", 0x2ECC71, f"Channel renamed to **{new_name[:100]}**")
             except Exception as e:
                 embed = self._make_embed("❌ Error", 0xE74C3C, f"Could not rename: {e}")
             await ctx.send(embed=embed)
 
         elif action == "limit":
             if not value or not value.isdigit():
-                embed = self._make_embed("❌ Invalid", 0xE74C3C, "Usage: `sudo vc limit <0-99>` (0 = no limit)")
+                embed = self._make_embed("❌ Invalid", 0xE74C3C, "Usage: `alpha vc limit <0-99>` (0 = no limit)")
                 await ctx.send(embed=embed)
                 return
             limit = int(value)
@@ -201,7 +201,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
 
         elif action == "kick":
             if not value:
-                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to kick: `sudo vc kick @user`")
+                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to kick: `alpha vc kick @user`")
                 await ctx.send(embed=embed)
                 return
             try:
@@ -246,7 +246,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
 
         elif action == "invite":
             if not value:
-                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to invite: `sudo vc invite @user`")
+                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to invite: `alpha vc invite @user`")
                 await ctx.send(embed=embed)
                 return
             try:
@@ -267,7 +267,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
 
         elif action == "ban":
             if not value:
-                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to ban: `sudo vc ban @user`")
+                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to ban: `alpha vc ban @user`")
                 await ctx.send(embed=embed)
                 return
             try:
@@ -290,7 +290,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
 
         elif action == "unban":
             if not value:
-                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to unban: `sudo vc unban @user`")
+                embed = self._make_embed("❌ No User", 0xE74C3C, "Mention a user to unban: `alpha vc unban @user`")
                 await ctx.send(embed=embed)
                 return
             try:
@@ -301,7 +301,7 @@ class TempVCManager(commands.Cog, name="tempvc"):
                     await ctx.send(embed=embed)
                     return
                 try:
-                    await channel.set_permissions(member, connect=None, view_channel=None)
+                    await channel.set_permissions(member, connect=True, view_channel=True)
                     embed = self._make_embed("✅ Unbanned", 0x2ECC71, f"**{member.display_name}** can now join this channel")
                 except Exception:
                     embed = self._make_embed("❌ Error", 0xE74C3C, "Could not unban user")

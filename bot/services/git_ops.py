@@ -9,7 +9,7 @@ from datetime import datetime
 
 import aiohttp
 
-GIT_REPO = "guptamaan/SuperAlpha-Do"
+GIT_REPO = os.getenv("GIT_REPO", "guptamaan/SuperAlpha-Do")
 
 _git_cache: dict = {}
 _GIT_CACHE_TTL = 120
@@ -62,6 +62,11 @@ def _local_latest() -> dict | None:
         return None
 
 
+def _first_line(text: str) -> str:
+    lines = text.strip().splitlines()
+    return lines[0] if lines else ""
+
+
 def _git_date(iso: str) -> str:
     try:
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
@@ -93,7 +98,7 @@ async def _latest_commits() -> list[dict] | None:
                             {
                                 "sha": c.get("sha", ""),
                                 "short": c.get("sha", "")[:7],
-                                "message": ((c.get("commit") or {}).get("message") or "").strip().splitlines()[0] or "?",
+                                "message": _first_line((c.get("commit") or {}).get("message") or "") or "?",
                                 "author": (((c.get("commit") or {}).get("author") or {}).get("name")) or "?",
                                 "date": (((c.get("commit") or {}).get("author") or {}).get("date")) or "",
                                 "url": c.get("html_url") or "",
@@ -104,3 +109,41 @@ async def _latest_commits() -> list[dict] | None:
         commits = None
     _git_cache["commits"] = (now, commits)
     return commits
+
+
+async def _gh_get(path: str) -> dict | None:
+    """GET /repos/{GIT_REPO}/{path} from the GitHub API, cached briefly.
+
+    Works anonymously for public repos; a GITHUB_TOKEN raises the rate limit.
+    Returns None when the item doesn't exist or GitHub is unreachable.
+    """
+    now = time.time()
+    cached = _git_cache.get(path)
+    if cached and now - cached[0] < _GIT_CACHE_TTL:
+        return cached[1]
+    item: dict | None = None
+    try:
+        headers = {"Accept": "application/vnd.github+json"}
+        token = os.environ.get("GITHUB_TOKEN", "")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        url = f"https://api.github.com/repos/{GIT_REPO}/{path}"
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    item = await resp.json()
+    except Exception:
+        item = None
+    _git_cache[path] = (now, item)
+    return item
+
+
+async def _gh_issue(number: int) -> dict | None:
+    """Fetch one GitHub issue by number."""
+    return await _gh_get(f"issues/{number}")
+
+
+async def _gh_pr(number: int) -> dict | None:
+    """Fetch one GitHub pull request by number (includes PR-only fields)."""
+    return await _gh_get(f"pulls/{number}")

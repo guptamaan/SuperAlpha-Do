@@ -119,7 +119,7 @@ class Spectrum(commands.Cog, name="spectrum"):
 
     @commands.command(name="spectrum", aliases=["spec", "vis", "visualizer"])
     async def spectrum(self, ctx: commands.Context, action: str = None) -> None:
-        """Toggle audio spectrum visualization. Usage: sudo spectrum [on|off]"""
+        """Toggle audio spectrum visualization. Usage: alpha spectrum [on|off]"""
         if not ctx.voice_client:
             embed = self._make_embed("❌ Not in VC", 0xE74C3C, "Bot is not in a voice channel")
             await ctx.send(embed=embed)
@@ -134,7 +134,7 @@ class Spectrum(commands.Cog, name="spectrum"):
             embed.set_author(name="🎨 Spectrum Visualizer")
             embed.description = f"Spectrum is currently {status}"
             embed.add_field(name="Bars", value="".join(SpectrumVisualizer.CHARS), inline=False)
-            embed.add_field(name="Commands", value="`sudo spectrum on` - Enable\n`sudo spectrum off` - Disable", inline=False)
+            embed.add_field(name="Commands", value="`alpha spectrum on` - Enable\n`alpha spectrum off` - Disable", inline=False)
             await ctx.send(embed=embed)
             return
 
@@ -165,7 +165,7 @@ class Spectrum(commands.Cog, name="spectrum"):
             await ctx.send(embed=embed)
 
         else:
-            embed = self._make_embed("❌ Invalid", 0xE74C3C, "Usage: `sudo spectrum [on|off]`")
+            embed = self._make_embed("❌ Invalid", 0xE74C3C, "Usage: `alpha spectrum [on|off]`")
             await ctx.send(embed=embed)
 
     def _make_embed(self, title: str, color: int, description: str = "") -> discord.Embed:

@@ -1,8 +1,8 @@
 # SuperAlpha Do
 
-> SuperUser DO -- Alpha Branch
+> SuperAlpha Do -- Alpha Branch
 
-SuperAlpha Do is the open-source development repository for **SuperUser DO**, a multi-purpose Discord bot built on discord.py. This branch serves as the staging area for experimental features, new modules, and community-driven testing before code reaches the stable release.
+SuperAlpha Do is the open-source development repository for **SuperAlpha Do**, a multi-purpose Discord bot built on discord.py. This branch serves as the staging area for experimental features, new modules, and community-driven testing before code reaches the stable release.
 
 
 Support server - https://discord.gg/Z2NXkwkFK3
@@ -50,6 +50,12 @@ GROQ_MODEL='your-chosen-model'
 
 # Optional -- enables GitHub issue linking on the suggestion board
 GITHUB_TOKEN='your-github-token-here'
+
+# Optional -- overrides for server links / branding (defaults apply if unset)
+INVITE_URL='https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID'
+SUPPORT_SERVER='https://discord.gg/YOUR_INVITE'
+OWNER_HANDLE='@your_handle'
+GIT_REPO='yourname/SuperAlpha-Do'
 ```
 
 4. Start the bot:
@@ -67,6 +73,10 @@ python3 main.py
 | `GROQ_API_KEY`   | No       | API key for Groq-hosted LLM (AI commands)        |
 | `GROQ_MODEL`     | No       | Model identifier for Groq (e.g. `llama-3.3-70b-versatile`) |
 | `GITHUB_TOKEN`   | No       | GitHub token enabling issue linking on the suggestion board |
+| `INVITE_URL`     | No       | Bot invite URL (overrides the built-in default)             |
+| `SUPPORT_SERVER` | No       | Support server invite link (overrides the built-in default) |
+| `OWNER_HANDLE`   | No       | Owner handle shown on the invite command (e.g. `@r4ve_x`)    |
+| `GIT_REPO`       | No       | Repo slug used by `alpha git`, e.g. `guptamaan/SuperAlpha-Do` |
 
 Per-guild configuration and per-user data are stored under the `data/` directory (gitignored). The bot creates subdirectories and SQLite databases as needed when commands are used.
 
@@ -78,19 +88,19 @@ If the update is the first update of the day then it is simply the year.month.da
 
 E.g. For the first update of the date 1/1/2027 the update will be - 27.1.1
 
-And for the second update at same date will be 27.1.1A
+And for the second update on the same date will be 27.1.1A
 
 For third - 27.1.1B and so on
 
 
-Atmax the bot is only updated thrice a day, while the stable branch updates once or twice a *Month*.
+At most the bot is only updated thrice a day, while the stable branch updates once or twice a *Month*.
 
 ---
 
 ## Usage
 
 **Prefix:** `alpha ` or `Alpha ` (with a trailing space).
-Slash commands and bot-mention pings are also accepted as prefix.
+Slash commands and bot-mention pings are also accepted as a prefix.
 
 **Built-in help:** `alpha man` lists all commands grouped by module. `alpha man <command>` displays a detailed manual page for that command. `alpha man <words>` searches commands by name, alias, and function keywords, opening an interactive results menu.
 
@@ -192,7 +202,7 @@ Optional Linux/Arch-inspired command aliases. Enable with `alpha enable linux` t
 
 ## Project status
 
-This repository is under active development. Features may be incomplete, renamed, or removed without notice. For the stable release, use SuperUser Do (closed source).
+This repository is under active development. Features may be incomplete, renamed, or removed without notice. For the stable release, use SuperAlpha Do (closed source).
 
 ---
 

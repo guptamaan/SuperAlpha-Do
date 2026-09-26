@@ -210,7 +210,7 @@ class Games(commands.Cog, name="games"):
     @commands.command(name="tictactoe", aliases=["ttt", "xox"])
     @commands.cooldown(1, 20, commands.BucketType.channel)
     async def tictactoe(self, ctx: commands.Context, opponent: discord.User) -> None:
-        """Play Tic-Tac-Toe with someone. Usage: sudo tictactoe @user"""
+        """Play Tic-Tac-Toe with someone. Usage: alpha tictactoe @user"""
         if opponent.bot:
             embed = self._make_embed("❌ Invalid Opponent", 0xE74C3C, "Bots cannot play!")
             await ctx.send(embed=embed)
@@ -277,7 +277,7 @@ class Games(commands.Cog, name="games"):
     @commands.command(name="connect4", aliases=["c4", "four"])
     @commands.cooldown(1, 20, commands.BucketType.channel)
     async def connect4(self, ctx: commands.Context, opponent: discord.User) -> None:
-        """Play Connect 4 with someone. Usage: sudo connect4 @user"""
+        """Play Connect 4 with someone. Usage: alpha connect4 @user"""
         if opponent.bot:
             embed = self._make_embed("❌ Invalid Opponent", 0xE74C3C, "Bots cannot play!")
             await ctx.send(embed=embed)
@@ -344,7 +344,7 @@ class Games(commands.Cog, name="games"):
     @commands.command(name="wordbank", aliases=["hangman", "wb"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def wordbank(self, ctx: commands.Context) -> None:
-        """Play a word guessing game. Usage: sudo wordbank"""
+        """Play a word guessing game. Usage: alpha wordbank"""
         game = WordBank()
         self.wb_games[ctx.author.id] = game
 
@@ -372,7 +372,7 @@ class Games(commands.Cog, name="games"):
                 result = game.guess(guess)
                 guessed_str = ", ".join(sorted(game.guessed)) if game.guessed else "none"
 
-                if "wins" in result or "over" in result:
+                if game.game_over:
                     embed = discord.Embed(
                         title="🔤 Word Bank",
                         description=f"`{' '.join(game.display)}`\n\n{result}\n\nGuessed: {guessed_str}",

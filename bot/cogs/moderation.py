@@ -37,7 +37,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(kick_members=True)
     @commands.bot_has_permissions(kick_members=True)
     async def kick(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided") -> None:
-        """Kick a member. Usage: sudo kick <@user> [reason]"""
+        """Kick a member. Usage: alpha kick <@user> [reason]"""
         await member.kick(reason=f"{ctx.author} — {reason}")
         embed = self._make_embed("👢 Member Kicked", 0xE74C3C)
         embed.add_field(name="User", value=member.mention, inline=True)
@@ -50,7 +50,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def ban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided") -> None:
-        """Ban a member. Usage: sudo ban <@user> [reason]"""
+        """Ban a member. Usage: alpha ban <@user> [reason]"""
         await member.ban(reason=f"{ctx.author} — {reason}", delete_message_days=0)
         embed = self._make_embed("🔨 Member Banned", 0xC0392B)
         embed.add_field(name="User", value=member.mention, inline=True)
@@ -63,7 +63,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def softban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided") -> None:
-        """Ban then immediately unban (clears messages). Usage: sudo softban <@user> [reason]"""
+        """Ban then immediately unban (clears messages). Usage: alpha softban <@user> [reason]"""
         await member.ban(reason=f"Softban by {ctx.author} — {reason}", delete_message_days=7)
         await ctx.guild.unban(member, reason="Softban unban")
         embed = self._make_embed("💨 Softban Executed", 0xE67E22)
@@ -78,7 +78,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def massban(self, ctx: commands.Context, members: commands.Greedy[discord.Member], *, reason: str = "Mass ban") -> None:
-        """Ban multiple members at once. Usage: sudo massban <@user1> <@user2> ... [reason]"""
+        """Ban multiple members at once. Usage: alpha massban <@user1> <@user2> ... [reason]"""
         if not members:
             embed = self._make_embed("🔨 Mass Ban Error", 0xE74C3C, "❌ No valid members specified")
             await ctx.send(embed=embed)
@@ -103,7 +103,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def unban(self, ctx: commands.Context, *, user_tag: str) -> None:
-        """Unban a user by tag. Usage: sudo unban <user#0000>"""
+        """Unban a user by tag. Usage: alpha unban <user#0000>"""
         banned = [entry async for entry in ctx.guild.bans()]
         for entry in banned:
             if str(entry.user) == user_tag:
@@ -121,7 +121,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(moderate_members=True)
     @commands.bot_has_permissions(moderate_members=True)
     async def mute(self, ctx: commands.Context, member: discord.Member, minutes: int = 10, *, reason: str = "No reason provided") -> None:
-        """Timeout a member. Usage: sudo mute <@user> [minutes] [reason]"""
+        """Timeout a member. Usage: alpha mute <@user> [minutes] [reason]"""
         until = discord.utils.utcnow() + datetime.timedelta(minutes=minutes)
         await member.timeout(until, reason=f"{ctx.author} — {reason}")
         embed = self._make_embed("🔇 Member Muted", 0x95A5A6)
@@ -136,7 +136,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(moderate_members=True)
     @commands.bot_has_permissions(moderate_members=True)
     async def unmute(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Remove timeout from a member. Usage: sudo unmute <@user>"""
+        """Remove timeout from a member. Usage: alpha unmute <@user>"""
         await member.timeout(None)
         embed = self._make_embed("🔊 Member Unmuted", 0x2ECC71)
         embed.add_field(name="User", value=member.mention, inline=True)
@@ -148,7 +148,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(move_members=True)
     @commands.bot_has_permissions(move_members=True)
     async def voicekick(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Kick a member from their voice channel. Usage: sudo voicekick <@user>"""
+        """Kick a member from their voice channel. Usage: alpha voicekick <@user>"""
         if not member.voice or not member.voice.channel:
             embed = self._make_embed("❌ Voicekick Failed", 0xE74C3C, f"{member} is not in a voice channel")
             await ctx.send(embed=embed)
@@ -164,7 +164,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(move_members=True)
     @commands.bot_has_permissions(move_members=True)
     async def voicemove(self, ctx: commands.Context, member: discord.Member, channel: discord.VoiceChannel) -> None:
-        """Move a member to a voice channel. Usage: sudo voicemove <@user> <channel>"""
+        """Move a member to a voice channel. Usage: alpha voicemove <@user> <channel>"""
         if not member.voice:
             embed = self._make_embed("❌ Move Failed", 0xE74C3C, f"{member} is not in a voice channel")
             await ctx.send(embed=embed)
@@ -181,7 +181,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(deafen_members=True)
     @commands.bot_has_permissions(deafen_members=True)
     async def deafen(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Server-deafen a member. Usage: sudo deafen <@user>"""
+        """Server-deafen a member. Usage: alpha deafen <@user>"""
         if not member.voice:
             embed = self._make_embed("❌ Deafen Failed", 0xE74C3C, f"{member} is not in a voice channel")
             await ctx.send(embed=embed)
@@ -197,7 +197,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(deafen_members=True)
     @commands.bot_has_permissions(deafen_members=True)
     async def undeafen(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Remove server-deafen from a member. Usage: sudo undeafen <@user>"""
+        """Remove server-deafen from a member. Usage: alpha undeafen <@user>"""
         if not member.voice:
             embed = self._make_embed("❌ Undeafen Failed", 0xE74C3C, f"{member} is not in a voice channel")
             await ctx.send(embed=embed)
@@ -213,9 +213,9 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
     async def addrole(self, ctx: commands.Context, member: discord.Member, *, role: discord.Role) -> None:
-        """Add a role to a member. Usage: sudo addrole <@user> <role>"""
+        """Add a role to a member. Usage: alpha addrole <@user> <role>"""
         if role >= ctx.guild.me.top_role:
-            embed = self._make_embed("❌ Add Role Failed", 0xE74C3C, "Role is above bot's highest role")
+            embed = self._make_embed("❌ Add Role Failed", 0xE74C3C, "Role is at or above the bot's highest role")
             await ctx.send(embed=embed)
             return
         await member.add_roles(role, reason=f"addrole by {ctx.author}")
@@ -230,9 +230,9 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
     async def removerole(self, ctx: commands.Context, member: discord.Member, *, role: discord.Role) -> None:
-        """Remove a role from a member. Usage: sudo removerole <@user> <role>"""
+        """Remove a role from a member. Usage: alpha removerole <@user> <role>"""
         if role >= ctx.guild.me.top_role:
-            embed = self._make_embed("❌ Remove Role Failed", 0xE74C3C, "Role is above bot's highest role")
+            embed = self._make_embed("❌ Remove Role Failed", 0xE74C3C, "Role is at or above the bot's highest role")
             await ctx.send(embed=embed)
             return
         await member.remove_roles(role, reason=f"removerole by {ctx.author}")
@@ -247,7 +247,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
     async def strip(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Remove all removable roles from a member. Usage: sudo strip <@user>"""
+        """Remove all removable roles from a member. Usage: alpha strip <@user>"""
         roles_to_remove = [
             r for r in member.roles
             if r != ctx.guild.default_role and r < ctx.guild.me.top_role
@@ -268,7 +268,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_messages=True)
     @commands.bot_has_permissions(manage_messages=True)
     async def purge(self, ctx: commands.Context, amount: int) -> None:
-        """Delete messages. Usage: sudo purge <amount>"""
+        """Delete messages. Usage: alpha purge <amount>"""
         if not 1 <= amount <= 500:
             embed = self._make_embed("❌ Purge Failed", 0xE74C3C, "Amount must be between 1 and 500")
             await ctx.send(embed=embed)
@@ -285,7 +285,7 @@ class Moderation(commands.Cog, name="moderation"):
     @commands.command(name="warn")
     @perms_or_developer(manage_messages=True)
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided") -> None:
-        """Warn a member. Usage: sudo warn <@user> [reason]"""
+        """Warn a member. Usage: alpha warn <@user> [reason]"""
         _warnings[ctx.guild.id][member.id].append(reason)
         count = len(_warnings[ctx.guild.id][member.id])
         embed = self._make_embed("⚠️ Warning Issued", 0xF39C12)
@@ -306,7 +306,7 @@ class Moderation(commands.Cog, name="moderation"):
     @commands.command(name="warnings", aliases=["warns"])
     @perms_or_developer(manage_messages=True)
     async def warnings(self, ctx: commands.Context, member: discord.Member) -> None:
-        """List warnings for a member. Usage: sudo warnings <@user>"""
+        """List warnings for a member. Usage: alpha warnings <@user>"""
         warns = _warnings[ctx.guild.id][member.id]
         if not warns:
             embed = self._make_embed(f"Warnings for {member}", 0x2ECC71, "✅ No warnings found")
@@ -322,7 +322,7 @@ class Moderation(commands.Cog, name="moderation"):
     @commands.command(name="clearwarns")
     @perms_or_developer(manage_guild=True)
     async def clearwarns(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Clear all warnings for a member. Usage: sudo clearwarns <@user>"""
+        """Clear all warnings for a member. Usage: alpha clearwarns <@user>"""
         _warnings[ctx.guild.id][member.id].clear()
         embed = self._make_embed("✅ Warnings Cleared", 0x2ECC71)
         embed.add_field(name="User", value=member.mention, inline=True)
@@ -334,7 +334,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_channels=True)
     @commands.bot_has_permissions(manage_channels=True)
     async def slowmode(self, ctx: commands.Context, seconds: int = 0) -> None:
-        """Set channel slowmode. Usage: sudo slowmode [seconds]"""
+        """Set channel slowmode. Usage: alpha slowmode [seconds]"""
         if not 0 <= seconds <= 21600:
             embed = self._make_embed("❌ Slowmode Failed", 0xE74C3C, "Value must be 0–21600 seconds")
             await ctx.send(embed=embed)
@@ -352,7 +352,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_channels=True)
     @commands.bot_has_permissions(manage_channels=True)
     async def lock(self, ctx: commands.Context) -> None:
-        """Lock the current channel. Usage: sudo lock"""
+        """Lock the current channel. Usage: alpha lock"""
         overwrite = ctx.channel.overwrites_for(ctx.guild.default_role)
         overwrite.send_messages = False
         await ctx.channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
@@ -367,7 +367,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_channels=True)
     @commands.bot_has_permissions(manage_channels=True)
     async def unlock(self, ctx: commands.Context) -> None:
-        """Unlock the current channel. Usage: sudo unlock"""
+        """Unlock the current channel. Usage: alpha unlock"""
         overwrite = ctx.channel.overwrites_for(ctx.guild.default_role)
         overwrite.send_messages = None
         await ctx.channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
@@ -382,7 +382,7 @@ class Moderation(commands.Cog, name="moderation"):
     @perms_or_developer(manage_nicknames=True)
     @commands.bot_has_permissions(manage_nicknames=True)
     async def nickname(self, ctx: commands.Context, member: discord.Member, *, name: str | None = None) -> None:
-        """Change or reset a member's nickname. Usage: sudo nickname <@user> [name]"""
+        """Change or reset a member's nickname. Usage: alpha nickname <@user> [name]"""
         await member.edit(nick=name)
         embed = self._make_embed("📛 Nickname Updated", 0x9B59B6)
         embed.add_field(name="User", value=member.mention, inline=True)

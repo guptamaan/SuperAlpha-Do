@@ -1,7 +1,8 @@
 """
 bot/cogs/music.py — Music commands (yt-dlp + FFmpeg, no lavalink needed).
 Commands: join, leave, play, pause, resume, stop, skip, queue, revive,
-          nowplaying, volume, shuffle, loop, remove, clear, radio
+          nowplaying, volume, shuffle, loop (single/queue), remove, clear, radio, favorite,
+          playlist (create/delete/add/remove/save/play/list)
 
 Requirements (all pip-installable except FFmpeg):
     pip install discord.py yt-dlp PyNaCl
@@ -122,7 +123,7 @@ class Music(commands.Cog, name="music"):
         embed.add_field(name="Requested by", value=track.requester.mention, inline=True)
         embed.add_field(
             name=f"{EMOJI_MUSIC_LOOP} Loop",
-            value="ON" if player.loop else "OFF",
+            value=self._loop_state(player),
             inline=True,
         )
         embed.add_field(
@@ -236,8 +237,11 @@ class Music(commands.Cog, name="music"):
         if player.game_active:
             return
         player.skip_votes.clear()
-        if player.loop and player.current:
+        requeue = self._requeue_finished(player)
+        if requeue == "front":
             player.queue.appendleft(player.current)
+        elif requeue == "back":
+            player.queue.append(player.current)
         if player.queue:
             player.current = player.queue.popleft()
             loop = asyncio.get_running_loop()
@@ -331,7 +335,7 @@ class Music(commands.Cog, name="music"):
     # ── join ──────────────────────────────────────────────────────────────────
     @commands.command(name="join", aliases=["connect", "j", "cd"])
     async def join(self, ctx: commands.Context) -> None:
-        """Join your voice channel to play music. Usage: sudo join"""
+        """Join your voice channel to play music. Usage: alpha join"""
         if not ctx.author.voice:
             embed = self._make_embed(
                 "❌ Not Connected", 0xE74C3C, "You are not in a voice channel"
@@ -360,7 +364,7 @@ class Music(commands.Cog, name="music"):
     # ── leave ─────────────────────────────────────────────────────────────────
     @commands.command(name="leave", aliases=["disconnect", "dc", "exit"])
     async def leave(self, ctx: commands.Context) -> None:
-        """Leave the voice channel and stop playback. Usage: sudo leave"""
+        """Leave the voice channel and stop playback. Usage: alpha leave"""
         if not ctx.voice_client:
             embed = self._make_embed(
                 "❌ Not Connected", 0xE74C3C, "Bot is not in a voice channel"
@@ -405,6 +409,7 @@ class Music(commands.Cog, name="music"):
         """Reset all player settings to default."""
         player.volume = 1.0
         player.loop = False
+        player.queue_loop = False
         player.autoplay = False
         player.bassboost = False
         player.nightcore = False
@@ -415,12 +420,12 @@ class Music(commands.Cog, name="music"):
     # ── revive ────────────────────────────────────────────────────────────────
     @commands.command(name="revive", aliases=["resumequeue", "rq"])
     async def revive(self, ctx: commands.Context) -> None:
-        """Revive the last track after bot disconnect. Usage: sudo revive"""
+        """Revive the last track after bot disconnect. Usage: alpha revive"""
         player = self._get_player(ctx.guild.id)
 
         if player.current or player.queue:
             embed = self._make_embed(
-                "❌ Queue Active", 0xE74C3C, "A queue is already active. Use `sudo skip` to clear it first."
+                "❌ Queue Active", 0xE74C3C, "A queue is already active. Use `alpha skip` to clear it first."
             )
             await ctx.send(embed=embed)
             return
@@ -465,7 +470,7 @@ class Music(commands.Cog, name="music"):
     @commands.command(name="play", aliases=["p"])
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def play(self, ctx: commands.Context, *, query: str) -> None:
-        """Play a song or add it to the queue. Usage: sudo play <url or search query>"""
+        """Play a song or add it to the queue. Usage: alpha play <url or search query>"""
         player = self._get_player(ctx.guild.id)
         if player.game_active:
             embed = self._make_embed(
@@ -567,7 +572,7 @@ class Music(commands.Cog, name="music"):
     # ── pause ─────────────────────────────────────────────────────────────────
     @commands.command(name="pause")
     async def pause(self, ctx: commands.Context) -> None:
-        """Pause the current track. Usage: sudo pause"""
+        """Pause the current track. Usage: alpha pause"""
         if ctx.voice_client and ctx.voice_client.is_playing():
             ctx.voice_client.pause()
             embed = self._make_embed("Paused", 0x95A5A6, f"{EMOJI_MUSIC_PAUSE} Playback paused.")
@@ -581,7 +586,7 @@ class Music(commands.Cog, name="music"):
     # ── resume ────────────────────────────────────────────────────────────────
     @commands.command(name="resume", aliases=["unpause"])
     async def resume(self, ctx: commands.Context) -> None:
-        """Resume paused playback. Usage: sudo resume"""
+        """Resume paused playback. Usage: alpha resume"""
         if ctx.voice_client and ctx.voice_client.is_paused():
             ctx.voice_client.resume()
             embed = self._make_embed("Resumed", 0x2ECC71, f"{EMOJI_MUSIC_PLAY} Playback resumed.")
@@ -595,7 +600,7 @@ class Music(commands.Cog, name="music"):
     # ── stop ──────────────────────────────────────────────────────────────────
     @commands.command(name="stop")
     async def stop(self, ctx: commands.Context) -> None:
-        """Stop playback and clear the queue. Usage: sudo stop"""
+        """Stop playback and clear the queue. Usage: alpha stop"""
         if not ctx.voice_client:
             embed = self._make_embed(
                 "❌ Not Connected", 0xE74C3C, "Bot is not in a voice channel"
@@ -627,7 +632,7 @@ class Music(commands.Cog, name="music"):
     # ── skip ──────────────────────────────────────────────────────────────────
     @commands.command(name="skip", aliases=["s", "next"])
     async def skip(self, ctx: commands.Context) -> None:
-        """Vote to skip the current track (auto-votes). Skip triggers at 50% votes. Usage: sudo skip"""
+        """Vote to skip the current track (auto-votes). Skip triggers at 50% votes. Usage: alpha skip"""
         if not ctx.voice_client or not ctx.voice_client.is_playing():
             embed = self._make_embed(
                 "❌ Nothing Playing", 0xE74C3C, "Nothing is currently playing"
@@ -731,7 +736,7 @@ class Music(commands.Cog, name="music"):
     # ── queue ─────────────────────────────────────────────────────────────────
     @commands.command(name="queue", aliases=["q"])
     async def queue(self, ctx: commands.Context) -> None:
-        """View the current music queue. Usage: sudo queue"""
+        """View the current music queue. Usage: alpha queue"""
         player = self._get_player(ctx.guild.id)
         embed = discord.Embed(color=0x1DB954)
         embed.set_author(
@@ -761,7 +766,7 @@ class Music(commands.Cog, name="music"):
             embed.add_field(name="Queue", value="Empty", inline=False)
         embed.add_field(
             name=f"{EMOJI_MUSIC_LOOP} Loop",
-            value="ON" if player.loop else "OFF",
+            value=self._loop_state(player),
             inline=True,
         )
         embed.add_field(
@@ -774,7 +779,7 @@ class Music(commands.Cog, name="music"):
     # ── nowplaying ────────────────────────────────────────────────────────────
     @commands.command(name="nowplaying", aliases=["np", "current"])
     async def nowplaying(self, ctx: commands.Context) -> None:
-        """Show what's currently playing. Usage: sudo nowplaying"""
+        """Show what's currently playing. Usage: alpha nowplaying"""
         player = self._get_player(ctx.guild.id)
         if not player.current:
             embed = self._make_embed(
@@ -787,7 +792,7 @@ class Music(commands.Cog, name="music"):
     # ── volume ────────────────────────────────────────────────────────────────
     @commands.command(name="volume", aliases=["vol"])
     async def volume(self, ctx: commands.Context, level: int) -> None:
-        """Adjust the music volume. Usage: sudo volume <0-200>"""
+        """Adjust the music volume. Usage: alpha volume <0-200>"""
         if not 0 <= level <= 200:
             embed = self._make_embed(
                 "❌ Invalid Volume", 0xE74C3C, "Value must be between 0 and 200"
@@ -806,7 +811,7 @@ class Music(commands.Cog, name="music"):
     # ── shuffle ───────────────────────────────────────────────────────────────
     @commands.command(name="shuffle")
     async def shuffle(self, ctx: commands.Context) -> None:
-        """Shuffle the music queue. Usage: sudo shuffle"""
+        """Shuffle the music queue. Usage: alpha shuffle"""
         player = self._get_player(ctx.guild.id)
         if len(player.queue) < 2:
             embed = self._make_embed(
@@ -827,21 +832,58 @@ class Music(commands.Cog, name="music"):
         await ctx.send(embed=embed)
 
     # ── loop ──────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _requeue_finished(player: GuildPlayer) -> str | None:
+        """Where the finished track is re-enqueued: 'front' (single-track loop),
+        'back' (whole-queue loop), or None."""
+        if player.loop and player.current:
+            return "front"
+        if player.queue_loop and player.current:
+            return "back"
+        return None
+
+    @staticmethod
+    def _loop_state(player: GuildPlayer) -> str:
+        if player.queue_loop:
+            return "ON — queue"
+        if player.loop:
+            return "ON — single"
+        return "OFF"
+
     @commands.command(name="loop", aliases=["repeat"])
-    async def loop(self, ctx: commands.Context) -> None:
-        """Toggle loop mode for the queue. Usage: sudo loop"""
+    async def loop(self, ctx: commands.Context, mode: str = None) -> None:
+        """Loop the current track or the whole queue. Usage: alpha loop [queue|single|off]"""
         player = self._get_player(ctx.guild.id)
-        player.loop = not player.loop
-        state = "**enabled**" if player.loop else "**disabled**"
-        embed = self._make_embed(
-            "Loop Toggled", 0xF39C12, f"{EMOJI_MUSIC_LOOP} Loop {state}"
-        )
+        choice = (mode or "").strip().lower()
+
+        if choice in ("queue", "all", "playlist"):
+            player.queue_loop = not player.queue_loop
+            if player.queue_loop:
+                player.loop = False
+            state = "enabled (**whole queue**)" if player.queue_loop else "disabled"
+        elif choice in ("", "single", "track", "one"):
+            player.loop = not player.loop
+            if player.loop:
+                player.queue_loop = False
+            state = "enabled (**single track**)" if player.loop else "disabled"
+        elif choice in ("off", "none", "stop"):
+            player.loop = False
+            player.queue_loop = False
+            state = "disabled"
+        else:
+            embed = self._make_embed(
+                "❌ Invalid Mode", 0xE74C3C, "Use: `alpha loop [queue|single|off]`"
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = self._make_embed("Loop Toggled", 0xF39C12, f"{EMOJI_MUSIC_LOOP} Loop {state}")
         await ctx.send(embed=embed)
 
     # ── remove ────────────────────────────────────────────────────────────────
     @commands.command(name="remove")
     async def remove(self, ctx: commands.Context, index: int) -> None:
-        """Remove a track from queue by position. Usage: sudo remove <position>"""
+        """Remove a track from queue by position. Usage: alpha remove <position>"""
         player = self._get_player(ctx.guild.id)
         if not player.queue or not 1 <= index <= len(player.queue):
             embed = self._make_embed(
@@ -861,7 +903,7 @@ class Music(commands.Cog, name="music"):
     @commands.command(name="radio")
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def radio(self, ctx: commands.Context, *, genre: str) -> None:
-        """Play a radio stream of a music genre. Usage: sudo radio <genre>"""
+        """Play a radio stream of a music genre. Usage: alpha radio <genre>"""
         if not ctx.author.voice:
             embed = self._make_embed(
                 "❌ Not Connected", 0xE74C3C, "You must be in a voice channel"
@@ -966,7 +1008,7 @@ class Music(commands.Cog, name="music"):
     # ── clearqueue ────────────────────────────────────────────────────────────
     @commands.command(name="clearqueue", aliases=["cq"])
     async def clearqueue(self, ctx: commands.Context) -> None:
-        """Clear all tracks from the queue. Usage: sudo clearqueue"""
+        """Clear all tracks from the queue. Usage: alpha clearqueue"""
         player = self._get_player(ctx.guild.id)
         count = len(player.queue)
         player.queue.clear()
@@ -978,7 +1020,7 @@ class Music(commands.Cog, name="music"):
     # ── seek ──────────────────────────────────────────────────────────────────
     @commands.command(name="seek")
     async def seek(self, ctx: commands.Context, position: str) -> None:
-        """Seek to a position in the track. Usage: sudo seek <MM:SS>"""
+        """Seek to a position in the track. Usage: alpha seek <MM:SS>"""
         if not ctx.voice_client or not ctx.voice_client.is_playing():
             embed = self._make_embed("❌ Nothing Playing", 0xE74C3C, "Nothing is currently playing")
             await ctx.send(embed=embed)
@@ -1022,13 +1064,13 @@ class Music(commands.Cog, name="music"):
             self._schedule_play_next(ctx.guild.id)
 
         ctx.voice_client.play(source, after=after_callback)
-        embed = self._make_embed("⏩ Seeked", 0x2ECC71, f"Seeked to **{position}**")
+        embed = self._make_embed("⏩ Seek", 0x2ECC71, f"Jumped to **{position}**")
         await ctx.send(embed=embed)
 
     # ── replay ────────────────────────────────────────────────────────────────
     @commands.command(name="replay")
     async def replay(self, ctx: commands.Context) -> None:
-        """Replay the current track from the beginning. Usage: sudo replay"""
+        """Replay the current track from the beginning. Usage: alpha replay"""
         if not ctx.voice_client or not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
             embed = self._make_embed("❌ Nothing Playing", 0xE74C3C, "Nothing is currently playing")
             await ctx.send(embed=embed)
@@ -1049,7 +1091,7 @@ class Music(commands.Cog, name="music"):
     # ── autoplay ─────────────────────────────────────────────────────────────
     @commands.command(name="autoplay")
     async def autoplay(self, ctx: commands.Context) -> None:
-        """Toggle autoplay for similar tracks. Usage: sudo autoplay"""
+        """Toggle autoplay for similar tracks. Usage: alpha autoplay"""
         player = self._get_player(ctx.guild.id)
         player.autoplay = not player.autoplay
         state = "**enabled**" if player.autoplay else "**disabled**"
@@ -1059,7 +1101,7 @@ class Music(commands.Cog, name="music"):
     # ── bassboost ────────────────────────────────────────────────────────────
     @commands.command(name="bassboost")
     async def bassboost(self, ctx: commands.Context) -> None:
-        """Toggle bass boost effect. Usage: sudo bassboost"""
+        """Toggle bass boost effect. Usage: alpha bassboost"""
         player = self._get_player(ctx.guild.id)
         player.bassboost = not player.bassboost
         state = "**enabled**" if player.bassboost else "**disabled**"
@@ -1069,7 +1111,7 @@ class Music(commands.Cog, name="music"):
     # ── nightcore ────────────────────────────────────────────────────────────
     @commands.command(name="nightcore")
     async def nightcore(self, ctx: commands.Context) -> None:
-        """Toggle nightcore effect (faster + higher pitch). Usage: sudo nightcore"""
+        """Toggle nightcore effect (faster + higher pitch). Usage: alpha nightcore"""
         player = self._get_player(ctx.guild.id)
         player.nightcore = not player.nightcore
         state = "**enabled**" if player.nightcore else "**disabled**"
@@ -1079,7 +1121,7 @@ class Music(commands.Cog, name="music"):
     # ── 8d ───────────────────────────────────────────────────────────────────
     @commands.command(name="8d", aliases=["eightd"])
     async def eight_d(self, ctx: commands.Context) -> None:
-        """Toggle 8D audio effect. Usage: sudo 8d"""
+        """Toggle 8D audio effect. Usage: alpha 8d"""
         if not ctx.voice_client or not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
             embed = self._make_embed("❌ Nothing Playing", 0xE74C3C, "Nothing is currently playing")
             await ctx.send(embed=embed)
@@ -1093,7 +1135,7 @@ class Music(commands.Cog, name="music"):
     # ── equalizer ────────────────────────────────────────────────────────────
     @commands.command(name="equalizer", aliases=["eq"])
     async def equalizer(self, ctx: commands.Context, preset: str = "flat") -> None:
-        """Set equalizer preset. Usage: sudo equalizer <preset>"""
+        """Set equalizer preset. Usage: alpha equalizer <preset>"""
         player = self._get_player(ctx.guild.id)
         valid_presets = ["flat", "bass", "treble", "pop", "rock", "jazz", "classical", "electronic"]
         preset = preset.lower()
@@ -1109,7 +1151,7 @@ class Music(commands.Cog, name="music"):
     @commands.command(name="lyrics")
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def lyrics(self, ctx: commands.Context, *, query: str = None) -> None:
-        """Search for song lyrics. Usage: sudo lyrics <song name>"""
+        """Search for song lyrics. Usage: alpha lyrics <song name>"""
         if not query:
             player = self._get_player(ctx.guild.id)
             if player.current:
@@ -1139,17 +1181,50 @@ class Music(commands.Cog, name="music"):
                 embed.set_author(name="🎤 Lyrics Search", icon_url=None)
                 embed.description = f"**{title}**"
                 embed.add_field(name="Search", value=f"[YouTube Search]({url})", inline=True)
-                embed.add_field(name="Tip", value="Use /lyrics slash command or search on Genius/Lyrics.com", inline=True)
+                embed.add_field(name="Tip", value="Search on Genius or lyrics.com", inline=True)
                 await msg.edit(embed=embed)
             else:
                 await msg.edit(embed=self._make_embed("❌ Not Found", 0xE74C3C, f"Could not find lyrics for: **{query}**"))
         except Exception as e:
             await msg.edit(embed=self._make_embed("❌ Error", 0xE74C3C, f"Search failed: {e}"))
 
-    # ── favorites ────────────────────────────────────────────────────────────
+    # ── favorite / favorites ──────────────────────────────────────────────────
+    def _add_favorite(self, user_id: int, entry: str) -> bool:
+        """Append *entry* to a user's favorites file; False if already saved."""
+        path = f"data/favorites_{user_id}.txt"
+        os.makedirs("data", exist_ok=True)
+        existing = set()
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                existing = {line.strip().lower() for line in f if line.strip()}
+        if entry.lower() in existing:
+            return False
+        with open(path, "a") as f:
+            f.write(f"{entry}\n")
+        return True
+
+    @commands.command(name="favorite", aliases=["fav", "star"])
+    async def favorite(self, ctx: commands.Context) -> None:
+        """Favorite the currently playing track. Usage: alpha favorite"""
+        player = self._get_player(ctx.guild.id)
+        if not player.current:
+            embed = self._make_embed("❌ Nothing Playing", 0xE74C3C, "Nothing is currently playing")
+            await ctx.send(embed=embed)
+            return
+        added = self._add_favorite(ctx.author.id, player.current.title)
+        if added:
+            embed = self._make_embed(
+                "⭐ Favorited", 0xF1C40F, f"Added to favorites: **{player.current.title}**"
+            )
+        else:
+            embed = self._make_embed(
+                "⭐ Already Saved", 0xF1C40F, f"**{player.current.title}** is already in your favorites"
+            )
+        await ctx.send(embed=embed)
+
     @commands.command(name="favorites", aliases=["favs"])
     async def favorites(self, ctx: commands.Context, action: str = None, *, query: str = None) -> None:
-        """Manage your favorites. Usage: sudo favorites [add|remove|list] [song name]"""
+        """Manage your favorites. Usage: alpha favorites [add|remove|list] [song name]. Tip: use `alpha favorite` while a track plays."""
         player = self._get_player(ctx.guild.id)
         user_id = str(ctx.author.id)
         
@@ -1165,7 +1240,7 @@ class Music(commands.Cog, name="music"):
         
         if not action:
             if not user_favs:
-                embed = self._make_embed("⭐ Favorites", 0xF1C40F, "Your favorites list is empty. Use `sudo favorites add <song>` to add.")
+                embed = self._make_embed("⭐ Favorites", 0xF1C40F, "Your favorites list is empty. Use `alpha favorites add <song>` to add.")
                 await ctx.send(embed=embed)
                 return
             embed = discord.Embed(color=0xF1C40F)
@@ -1188,9 +1263,11 @@ class Music(commands.Cog, name="music"):
                 fav_entry = player.current.title
             else:
                 fav_entry = query
-            with open(favorites_file, "a") as f:
-                f.write(f"{fav_entry}\n")
-            embed = self._make_embed("⭐ Added", 0xF1C40F, f"Added to favorites: **{fav_entry}**")
+            added = self._add_favorite(ctx.author.id, fav_entry)
+            if added:
+                embed = self._make_embed("⭐ Added", 0xF1C40F, f"Added to favorites: **{fav_entry}**")
+            else:
+                embed = self._make_embed("⭐ Already Saved", 0xF1C40F, f"**{fav_entry}** is already in your favorites")
             await ctx.send(embed=embed)
         
         elif action == "remove":
@@ -1225,20 +1302,20 @@ class Music(commands.Cog, name="music"):
             await ctx.send(embed=embed)
         
         else:
-            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Use: `sudo favorites add <song>`, `sudo favorites remove <song>`, or `sudo favorites`")
+            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Use: `alpha favorites add <song>`, `alpha favorites remove <song>`, or `alpha favorites`")
             await ctx.send(embed=embed)
 
     # ── playlist ────────────────────────────────────────────────────────────
     @commands.command(name="playlist")
     async def playlist(self, ctx: commands.Context, action: str = None, name: str = None, *, query: str = None) -> None:
-        """Manage playlists. Usage: sudo playlist [create|delete|add|remove|play|list] [name] [song]"""
+        """Manage playlists. Usage: alpha playlist [create|delete|add|remove|save|play|list] [name] [song]. `save` saves the whole queue."""
         playlists_dir = "data/playlists"
         os.makedirs(playlists_dir, exist_ok=True)
         
         if not action:
             playlists = [f.replace(".txt", "") for f in os.listdir(playlists_dir) if f.endswith(".txt")]
             if not playlists:
-                embed = self._make_embed("🎶 Playlists", 0x9B59B6, "No playlists yet. Use `sudo playlist create <name>` to create one.")
+                embed = self._make_embed("🎶 Playlists", 0x9B59B6, "No playlists yet. Use `alpha playlist create <name>` to create one.")
                 await ctx.send(embed=embed)
                 return
             embed = discord.Embed(color=0x9B59B6)
@@ -1282,7 +1359,7 @@ class Music(commands.Cog, name="music"):
         
         elif action == "add":
             if not name or not query:
-                embed = self._make_embed("❌ Missing Args", 0xE74C3C, "Usage: `sudo playlist add <name> <song>`")
+                embed = self._make_embed("❌ Missing Args", 0xE74C3C, "Usage: `alpha playlist add <name> <song>`")
                 await ctx.send(embed=embed)
                 return
             safe_name = "".join(c for c in name if c.isalnum() or c in " _-").strip()[:50]
@@ -1298,7 +1375,7 @@ class Music(commands.Cog, name="music"):
         
         elif action == "remove":
             if not name or not query:
-                embed = self._make_embed("❌ Missing Args", 0xE74C3C, "Usage: `sudo playlist remove <name> <song>`")
+                embed = self._make_embed("❌ Missing Args", 0xE74C3C, "Usage: `alpha playlist remove <name> <song>`")
                 await ctx.send(embed=embed)
                 return
             safe_name = "".join(c for c in name if c.isalnum() or c in " _-").strip()[:50]
@@ -1316,6 +1393,35 @@ class Music(commands.Cog, name="music"):
             embed = self._make_embed("➖ Removed", 0xF39C12, f"Removed from **{safe_name}**: {query}")
             await ctx.send(embed=embed)
         
+        elif action in ("save", "savequeue"):
+            if not name:
+                embed = self._make_embed("❌ No Name", 0xE74C3C, "Usage: `alpha playlist save <name>`")
+                await ctx.send(embed=embed)
+                return
+            safe_name = "".join(c for c in name if c.isalnum() or c in " _-").strip()[:50]
+            playlist_file = os.path.join(playlists_dir, f"{safe_name}.txt")
+            if not os.path.exists(playlist_file):
+                embed = self._make_embed("❌ Not Found", 0xE74C3C, f"Playlist **{safe_name}** not found")
+                await ctx.send(embed=embed)
+                return
+            player = self._get_player(ctx.guild.id)
+            tracks: list[Track] = []
+            if player.current:
+                tracks.append(player.current)
+            tracks.extend(player.queue)
+            if not tracks:
+                embed = self._make_embed("❌ Empty Queue", 0xE74C3C, "Nothing in the queue to save")
+                await ctx.send(embed=embed)
+                return
+            with open(playlist_file, "a") as f:
+                for t in tracks:
+                    f.write(f"{t.title}\n")
+            embed = self._make_embed(
+                "💾 Queue Saved", 0x2ECC71,
+                f"Saved **{len(tracks)}** track(s) from the queue to **{safe_name}**"
+            )
+            await ctx.send(embed=embed)
+
         elif action == "play":
             if not name:
                 embed = self._make_embed("❌ No Name", 0xE74C3C, "Provide a playlist name")
@@ -1356,7 +1462,7 @@ class Music(commands.Cog, name="music"):
             embed = self._make_embed("🎶 Playlist Queued", 0x9B59B6, f"Added **{added}** songs from **{safe_name}** to queue")
             await ctx.send(embed=embed)
             
-            if not ctx.voice_client.is_playing():
+            if not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
                 await self._play_next(ctx.guild.id)
         
         elif action == "list":
@@ -1383,13 +1489,13 @@ class Music(commands.Cog, name="music"):
             await ctx.send(embed=embed)
         
         else:
-            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Use: create, delete, add, remove, play, list")
+            embed = self._make_embed("❌ Invalid Action", 0xE74C3C, "Use: create, delete, add, remove, save, play, list")
             await ctx.send(embed=embed)
 
     @commands.command(name="refresh")
     @perms_or_developer(administrator=True)
     async def refresh(self, ctx: commands.Context) -> None:
-        """Refresh yt-dlp cookies. Usage: sudo refresh"""
+        """Refresh yt-dlp cookies. Usage: alpha refresh"""
         cookies_file = "cookies.txt"
         
         if not os.path.exists(cookies_file):
@@ -1426,7 +1532,7 @@ class Music(commands.Cog, name="music"):
 
     @commands.command(name="slowed")
     async def slowed(self, ctx: commands.Context) -> None:
-        """Toggle slowed + reverb effect. Usage: sudo slowed"""
+        """Toggle slowed + reverb effect. Usage: alpha slowed"""
         if not ctx.voice_client or not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
             embed = self._make_embed("❌ Nothing Playing", 0xE74C3C, "Nothing is currently playing")
             await ctx.send(embed=embed)

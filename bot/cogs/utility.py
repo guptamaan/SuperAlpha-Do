@@ -48,7 +48,7 @@ class Utility(commands.Cog, name="utility"):
     # ── poll ──────────────────────────────────────────────────────────────────
     @commands.command(name="poll")
     async def poll(self, ctx: commands.Context, question: str, *options: str) -> None:
-        """Create a poll. Usage: sudo poll "Question" "Option1" "Option2" ..."""
+        """Create a poll. Usage: alpha poll "Question" "Option1" "Option2" ..."""
         if len(options) < 2:
             embed = self._make_embed("📊 Poll Error", 0xE74C3C)
             embed.description = "❌ Provide at least 2 options"
@@ -76,7 +76,7 @@ class Utility(commands.Cog, name="utility"):
     # ── remind ────────────────────────────────────────────────────────────────
     @commands.command(name="remind", aliases=["reminder"])
     async def remind(self, ctx: commands.Context, time_str: str, *, message: str) -> None:
-        """Set a reminder. Usage: sudo remind <time> <message>  (e.g. 10m, 2h, 1d)"""
+        """Set a reminder. Usage: alpha remind <time> <message> (e.g. 10m, 2h, 1d)"""
         pattern = re.match(r"^(\d+)([smhd])$", time_str.lower())
         if not pattern:
             embed = self._make_embed("⏰ Reminder Error", 0xE74C3C)
@@ -132,7 +132,7 @@ class Utility(commands.Cog, name="utility"):
                 description=message,
                 color=0xF39C12,
             )
-            embed.set_footer(text=f"Set {time_str} ago")
+            embed.set_footer(text=f"Due: {time_str}")
             await user.send(embed=embed)
         except asyncio.CancelledError:
             return
@@ -164,7 +164,7 @@ class Utility(commands.Cog, name="utility"):
     # ── rand ──────────────────────────────────────────────────────────────────
     @commands.command(name="rand", aliases=["random", "randint"])
     async def rand(self, ctx: commands.Context, a: int, b: int) -> None:
-        """Random integer between a and b. Usage: sudo rand <a> <b>"""
+        """Random integer between a and b. Usage: alpha rand <a> <b>"""
         lo, hi = (a, b) if a <= b else (b, a)
         value = random.randint(lo, hi)
         embed = self._make_embed("🎲 Random Number", 0x9B59B6)
@@ -177,18 +177,18 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="wiki", aliases=["wikipedia", "apropos"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def wiki(self, ctx: commands.Context, *, query: str) -> None:
-        """Fetch a short Wikipedia summary. Usage: sudo wiki <query>"""
+        """Fetch a short Wikipedia summary. Usage: alpha wiki <query>"""
         title = quote(query.replace(" ", "_"))
         url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
         try:
             async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
                 if resp.status != 200:
-                    raise ValueError(f"no Wikipedia page found for '{query}'")
+                    raise ValueError(f"No Wikipedia page found for '{query}'")
                 data = await resp.json(content_type=None)
 
             summary = data.get("extract") or ""
             if not summary:
-                raise ValueError("no summary available")
+                raise ValueError("No summary available")
 
             page_title = data.get("title") or query
             page_url = (
@@ -216,7 +216,7 @@ class Utility(commands.Cog, name="utility"):
     # ── base64 ────────────────────────────────────────────────────────────────
     @commands.command(name="base64", aliases=["b64"])
     async def base64_cmd(self, ctx: commands.Context, mode: str, *, text: str) -> None:
-        """Encode/decode base64. Usage: sudo base64 <encode|decode> <text>"""
+        """Encode/decode base64. Usage: alpha base64 <encode|decode> <text>"""
         mode = mode.lower()
         if mode in ("encode", "enc", "-e"):
             result = base64.b64encode(text.encode()).decode()
@@ -244,7 +244,7 @@ class Utility(commands.Cog, name="utility"):
     # ── hash ──────────────────────────────────────────────────────────────────
     @commands.command(name="hash", aliases=["md5sum", "sha256sum"])
     async def hash_cmd(self, ctx: commands.Context, algorithm: str, *, text: str) -> None:
-        """Hash text. Usage: sudo hash <md5|sha1|sha256|sha512> <text>"""
+        """Hash text. Usage: alpha hash <md5|sha1|sha256|sha512> <text>"""
         algo = algorithm.lower()
         supported = {"md5": hashlib.md5, "sha1": hashlib.sha1,
                      "sha256": hashlib.sha256, "sha512": hashlib.sha512}
@@ -263,7 +263,7 @@ class Utility(commands.Cog, name="utility"):
     # ── timestamp ─────────────────────────────────────────────────────────────
     @commands.command(name="timestamp", aliases=["ts", "epoch", "date"])
     async def timestamp(self, ctx: commands.Context) -> None:
-        """Show current Unix timestamp. Usage: sudo timestamp"""
+        """Show current Unix timestamp. Usage: alpha timestamp"""
         now = datetime.datetime.now(datetime.timezone.utc)
         epoch = int(now.timestamp())
         embed = self._make_embed("⏱️ Timestamp", 0x2ECC71)
@@ -276,7 +276,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="say", aliases=["echo", "printf"])
     @perms_or_developer(manage_messages=True)
     async def say(self, ctx: commands.Context, *, message: str) -> None:
-        """Make the bot say something. Usage: sudo say <message>"""
+        """Make the bot say something. Usage: alpha say <message>"""
         await ctx.message.delete()
         await ctx.send(message, suppress_embeds=True)
 
@@ -284,7 +284,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="announce")
     @perms_or_developer(manage_guild=True)
     async def announce(self, ctx: commands.Context, channel: discord.TextChannel, *, message: str) -> None:
-        """Send an announcement embed. Usage: sudo announce #channel <message>"""
+        """Send an announcement embed. Usage: alpha announce #channel <message>"""
         embed = discord.Embed(
             title="📢 Announcement",
             description=message,
@@ -302,7 +302,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="embed")
     @perms_or_developer(manage_messages=True)
     async def embed_cmd(self, ctx: commands.Context, title: str, *, description: str) -> None:
-        """Send a custom embed. Usage: sudo embed "Title" Description text"""
+        """Send a custom embed. Usage: alpha embed "Title" Description text"""
         await ctx.message.delete()
         embed = discord.Embed(title=title, description=description, color=0x2ECC71)
         embed.set_footer(text=f"By {ctx.author}")
@@ -312,7 +312,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="weather", aliases=["wttr"])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def weather(self, ctx: commands.Context, *, city: str) -> None:
-        """Get weather for a city. Usage: sudo weather <city>"""
+        """Get weather for a city. Usage: alpha weather <city>"""
         url = f"https://wttr.in/{city.replace(' ', '+')}?format=j1"
         try:
             async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
@@ -356,7 +356,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="urban", aliases=["ud"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def urban(self, ctx: commands.Context, *, term: str) -> None:
-        """Search Urban Dictionary. Usage: sudo urban <term>"""
+        """Search Urban Dictionary. Usage: alpha urban <term>"""
         url = f"https://api.urbandictionary.com/v0/define?term={quote(term)}"
         try:
             async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
@@ -387,7 +387,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="define", aliases=["dict"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def define(self, ctx: commands.Context, *, word: str) -> None:
-        """Define a word. Usage: sudo define <word>"""
+        """Define a word. Usage: alpha define <word>"""
         url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{quote(word)}"
         try:
             async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
@@ -425,7 +425,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="shorten", aliases=["tinyurl"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def shorten(self, ctx: commands.Context, *, url: str) -> None:
-        """Shorten a URL. Usage: sudo shorten <url>"""
+        """Shorten a URL. Usage: alpha shorten <url>"""
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
         tiny_url = f"http://tinyurl.com/api-create.php?url={quote(url)}"
@@ -445,7 +445,7 @@ class Utility(commands.Cog, name="utility"):
     @commands.command(name="translate", aliases=["trans"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def translate(self, ctx: commands.Context, lang: str, *, text: str) -> None:
-        """Translate text. Usage: sudo translate <lang> <text>"""
+        """Translate text. Usage: alpha translate <lang> <text>"""
         lang_map = {
             "es": "Spanish", "fr": "French", "de": "German", "it": "Italian",
             "pt": "Portuguese", "ru": "Russian", "ja": "Japanese", "ko": "Korean",

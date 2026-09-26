@@ -95,7 +95,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="8ball", aliases=["eightball"])
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def eight_ball(self, ctx: commands.Context, *, question: str) -> None:
-        """Ask the Magic 8-Ball for answers. Usage: sudo 8ball <question>"""
+        """Ask the Magic 8-Ball for answers. Usage: alpha 8ball <question>"""
         response, color = random.choice(EIGHT_BALL_RESPONSES)
         embed = discord.Embed(color=color)
         embed.set_author(name="🎱 Magic 8-Ball", icon_url=None)
@@ -107,7 +107,7 @@ class Fun(commands.Cog, name="fun"):
     # ── coinflip ──────────────────────────────────────────────────────────────
     @commands.command(name="coinflip", aliases=["flip", "coin"])
     async def coinflip(self, ctx: commands.Context) -> None:
-        """Flip a coin to get heads or tails. Usage: sudo coinflip"""
+        """Flip a coin to get heads or tails. Usage: alpha coinflip"""
         result, emoji, color = random.choice([
             ("Heads", "🪙", 0xF1C40F),
             ("Tails", "🪙", 0x3498DB),
@@ -120,7 +120,7 @@ class Fun(commands.Cog, name="fun"):
     # ── roll ──────────────────────────────────────────────────────────────────
     @commands.command(name="roll", aliases=["dice", "rng"])
     async def roll(self, ctx: commands.Context, dice: str = "1d6") -> None:
-        """Roll dice in NdM format. Usage: sudo roll [NdM] (e.g. sudo roll 2d20)"""
+        """Roll dice in NdM format. Usage: alpha roll [NdM] (e.g. alpha roll 2d20)"""
         try:
             n_str, m_str = dice.lower().split("d")
             n, m = int(n_str or 1), int(m_str)
@@ -145,7 +145,7 @@ class Fun(commands.Cog, name="fun"):
     # ── rps ───────────────────────────────────────────────────────────────────
     @commands.command(name="rps")
     async def rps(self, ctx: commands.Context, choice: str) -> None:
-        """Play Rock Paper Scissors against the bot. Usage: sudo rps <rock|paper|scissors>"""
+        """Play Rock Paper Scissors against the bot. Usage: alpha rps <rock|paper|scissors>"""
         choice = choice.lower()
         if choice not in RPS_CHOICES:
             embed = self._make_embed("🎮 RPS Error", 0xE74C3C)
@@ -176,7 +176,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="joke")
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def joke(self, ctx: commands.Context) -> None:
-        """Get a random programming joke. Usage: sudo joke"""
+        """Get a random programming joke. Usage: alpha joke"""
         url = "https://v2.jokeapi.dev/joke/Programming?blacklistFlags=nsfw,racist,sexist"
         try:
             assert self._session is not None
@@ -197,7 +197,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="quote", aliases=["inspire"])
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def quote(self, ctx: commands.Context) -> None:
-        """Get an inspirational quote. Usage: sudo quote"""
+        """Get an inspirational quote. Usage: alpha quote"""
         try:
             assert self._session is not None
             async with self._session.get(
@@ -221,7 +221,7 @@ class Fun(commands.Cog, name="fun"):
     # ── ascii ─────────────────────────────────────────────────────────────────
     @commands.command(name="ascii", aliases=["figlet"])
     async def ascii_art(self, ctx: commands.Context, *, text: str) -> None:
-        """Convert text to ASCII art. Usage: sudo ascii <text> (max 20 chars)"""
+        """Convert text to ASCII art. Usage: alpha ascii <text> (max 20 chars)"""
         if len(text) > 20:
             embed = self._make_embed("🎨 ASCII Error", 0xE74C3C)
             embed.description = "❌ Text too long (max 20 characters)"
@@ -243,7 +243,7 @@ class Fun(commands.Cog, name="fun"):
     # ── mock ──────────────────────────────────────────────────────────────────
     @commands.command(name="mock")
     async def mock(self, ctx: commands.Context, *, text: str) -> None:
-        """Mock text with alternating capitalization. Usage: sudo mock <text>"""
+        """Mock text with alternating capitalization. Usage: alpha mock <text>"""
         result = "".join(
             c.upper() if i % 2 == 0 else c.lower() for i, c in enumerate(text)
         )
@@ -255,7 +255,7 @@ class Fun(commands.Cog, name="fun"):
     # ── reverse ───────────────────────────────────────────────────────────────
     @commands.command(name="reverse", aliases=["rev", "tac"])
     async def reverse(self, ctx: commands.Context, *, text: str) -> None:
-        """Reverse any text. Usage: sudo reverse <text>"""
+        """Reverse any text. Usage: alpha reverse <text>"""
         reversed_text = text[::-1]
         embed = self._make_embed("🔄 Reverse Text", 0xE74C3C)
         embed.add_field(name="Original", value=text, inline=False)
@@ -265,7 +265,7 @@ class Fun(commands.Cog, name="fun"):
     # ── choose ────────────────────────────────────────────────────────────────
     @commands.command(name="choose", aliases=["pick"])
     async def choose(self, ctx: commands.Context, *options: str) -> None:
-        """Let the bot choose between options. Usage: sudo choose <option1> <option2> [option3...]"""
+        """Let the bot choose between options. Usage: alpha choose <option1> <option2> [option3...]"""
         if len(options) < 2:
             embed = self._make_embed("🎯 Choose Error", 0xE74C3C)
             embed.description = "❌ Provide at least 2 options"
@@ -283,7 +283,7 @@ class Fun(commands.Cog, name="fun"):
     # ── ship ─────────────────────────────────────────────────────────────────
     @commands.command(name="ship")
     async def ship(self, ctx: commands.Context, person1: str, person2: str) -> None:
-        """Calculate love compatibility between two people. Usage: sudo ship <person1> <person2>"""
+        """Calculate love compatibility between two people. Usage: alpha ship <person1> <person2>"""
         love_score = random.randint(0, 100)
         bar_len = math.ceil(love_score / 10)
         bar = "❤️" * bar_len + "🖤" * (10 - bar_len)
@@ -295,7 +295,7 @@ class Fun(commands.Cog, name="fun"):
             "Friendship is also beautiful! 😊",
             "Maybe not meant to be... 💔",
         ]
-        msg_idx = min((love_score // 20), 4)
+        msg_idx = max(0, 4 - love_score // 20)
         message = messages[msg_idx]
 
         color = int(f"0x{hex(min(255, love_score * 2 + 50))[2:]:0>2}" + "0040", 16) if love_score > 50 else 0x9B59B6
@@ -312,7 +312,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="hack")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def hack(self, ctx: commands.Context, target: discord.User | discord.Member | None = None) -> None:
-        """Fake hack simulation (just for fun!). Usage: sudo hack [@user]"""
+        """Fake hack simulation (just for fun!). Usage: alpha hack [@user]"""
         target = target or ctx.author
         assert target is not None
         steps = [
@@ -355,7 +355,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="trivia")
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def trivia(self, ctx: commands.Context) -> None:
-        """Test your knowledge with a trivia question. Usage: sudo trivia"""
+        """Test your knowledge with a trivia question. Usage: alpha trivia"""
         q = random.choice(TRIVIA_QUESTIONS)
         self._trivia_scores[ctx.author.id] = 0
 
@@ -372,13 +372,15 @@ class Fun(commands.Cog, name="fun"):
         try:
             answer_msg = await self.bot.wait_for("message", timeout=15.0, check=check)
             answer = answer_msg.content.lower().strip()
+            target = q["a"].lower().strip()
+            correct = answer == target or (len(answer) >= 3 and answer in target)
 
-            if answer == q["a"].lower() or q["a"].lower() in answer:
+            if correct:
                 self._trivia_scores[ctx.author.id] = self._trivia_scores.get(ctx.author.id, 0) + 1
                 embed = discord.Embed(color=0x2ECC71, description="✅ **Correct!** Well done!")
             else:
                 embed = discord.Embed(color=0xE74C3C, description=f"❌ Wrong! The answer was **{q['a']}**")
-            embed.set_footer(text=f"Score: {self._trivia_scores[ctx.author.id]} points")
+            embed.set_footer(text=f"Score: {self._trivia_scores[ctx.author.id]} point{'s' if self._trivia_scores[ctx.author.id] != 1 else ''}")
             await ctx.send(embed=embed)
         except asyncio.TimeoutError:
             embed = discord.Embed(color=0x95A5A6, description=f"⏰ Time's up! The answer was **{q['a']}**")
@@ -387,7 +389,7 @@ class Fun(commands.Cog, name="fun"):
     # ── fact ─────────────────────────────────────────────────────────────────
     @commands.command(name="fact", aliases=["didyouknow", "dyk"])
     async def fact(self, ctx: commands.Context) -> None:
-        """Learn a random fun fact. Usage: sudo fact"""
+        """Learn a random fun fact. Usage: alpha fact"""
         fact = random.choice(FUN_FACTS)
         embed = discord.Embed(color=0x1ABC9C)
         embed.set_author(name="💡 Did You Know?", icon_url=None)
@@ -398,7 +400,7 @@ class Fun(commands.Cog, name="fun"):
     # ── pat ──────────────────────────────────────────────────────────────────
     @commands.command(name="pat")
     async def pat(self, ctx: commands.Context, member: discord.Member = None) -> None:
-        """Pat someone with a cute penguin! Usage: sudo pat [@user]"""
+        """Pat someone with a cute penguin! Usage: alpha pat [@user]"""
         if not member:
             embed = self._make_embed("❌ No Target", 0xE74C3C)
             embed.description = "Mention someone to pat!"
@@ -413,7 +415,7 @@ class Fun(commands.Cog, name="fun"):
         
         try:
             if isinstance(ctx.channel, discord.TextChannel):
-                webhook = await ctx.channel.create_webhook(name="sudo")
+                webhook = await ctx.channel.create_webhook(name="alpha")
                 await webhook.send(
                     f"{ctx.author.mention} pats {member.mention} UwU\n<a:tuxpat:1485238409437118556>",
                     username=ctx.bot.user.name,
@@ -430,7 +432,7 @@ class Fun(commands.Cog, name="fun"):
     # ── kill ─────────────────────────────────────────────────────────────────
     @commands.command(name="kill")
     async def kill(self, ctx: commands.Context, *, victim: str | None = None) -> None:
-        """Playfully eliminate someone. Usage: sudo kill <victim name>"""
+        """Playfully eliminate someone. Usage: alpha kill <victim name>"""
         kills = [
             "was struck by a falling piano! 🎹",
             "was eaten by a horde of cats! 🐱",
@@ -450,7 +452,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="slots", aliases=["slotmachine"])
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def slots(self, ctx: commands.Context, bet: int = 100) -> None:
-        """Play the slot machine game. Usage: sudo slots [bet amount]"""
+        """Play the slot machine game. Usage: alpha slots [bet amount]"""
         if bet < 1:
             bet = 100
 
@@ -507,7 +509,7 @@ class Fun(commands.Cog, name="fun"):
     @commands.command(name="wouldyourather", aliases=["wyr"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def wouldyourather(self, ctx: commands.Context) -> None:
-        """Get a would you rather question. Usage: sudo wouldyourather"""
+        """Get a would you rather question. Usage: alpha wouldyourather"""
         questions = [
             ("Be able to fly", "Be invisible"),
             ("Live without music", "Live without movies"),
@@ -540,10 +542,10 @@ class Fun(commands.Cog, name="fun"):
     # ── emojify ────────────────────────────────────────────────────────────────
     @commands.command(name="emojify")
     async def emojify(self, ctx: commands.Context, *, text: str) -> None:
-        """Convert text to emoji letters. Usage: sudo emojify <text> (max 50 chars)"""
+        """Convert text to emoji letters. Usage: alpha emojify <text> (max 50 chars)"""
         if len(text) > 50:
             embed = self._make_embed("😵 Too Long", 0xE74C3C)
-            embed.description = "Text must be under 50 characters"
+            embed.description = "Text must be 50 characters or fewer"
             await ctx.send(embed=embed)
             return
 
@@ -576,7 +578,7 @@ class Fun(commands.Cog, name="fun"):
     # ── fliptext ────────────────────────────────────────────────────────────────
     @commands.command(name="fliptext", aliases=["upside"])
     async def fliptext(self, ctx: commands.Context, *, text: str) -> None:
-        """Flip text upside down. Usage: sudo fliptext <text>"""
+        """Flip text upside down. Usage: alpha fliptext <text>"""
         if len(text) > 100:
             text = text[:100]
 

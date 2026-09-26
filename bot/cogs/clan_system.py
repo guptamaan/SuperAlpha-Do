@@ -164,15 +164,15 @@ class ClanSystem(commands.Cog, name="clans"):
             embed = discord.Embed(color=0x9B59B6)
             embed.set_author(name="⚔️ Clan System")
             embed.description = "Available commands:"
-            embed.add_field(name="`sudo clan create <name>`", value="Create a clan", inline=False)
-            embed.add_field(name="`sudo clan join <name>`", value="Join a clan", inline=False)
-            embed.add_field(name="`sudo clan leave`", value="Leave your clan", inline=False)
-            embed.add_field(name="`sudo clan info [name]`", value="View clan info", inline=False)
-            embed.add_field(name="`sudo clan leaderboard`", value="Top clans", inline=False)
-            embed.add_field(name="`sudo clan challenge <clan>`", value="Challenge a clan", inline=False)
-            embed.add_field(name="`sudo clan attack <type>`", value="Attack (raid/ambush/siege)", inline=False)
-            embed.add_field(name="`sudo clan mission`", value="Daily clan mission", inline=False)
-            embed.add_field(name="`sudo clan treasury`", value="View clan treasury", inline=False)
+            embed.add_field(name="`alpha clan create <name>`", value="Create a clan", inline=False)
+            embed.add_field(name="`alpha clan join <name>`", value="Join a clan", inline=False)
+            embed.add_field(name="`alpha clan leave`", value="Leave your clan", inline=False)
+            embed.add_field(name="`alpha clan info [name]`", value="View clan info", inline=False)
+            embed.add_field(name="`alpha clan leaderboard`", value="Top clans", inline=False)
+            embed.add_field(name="`alpha clan challenge <clan>`", value="Challenge a clan", inline=False)
+            embed.add_field(name="`alpha clan attack <type>`", value="Attack (raid/ambush/siege)", inline=False)
+            embed.add_field(name="`alpha clan mission`", value="Daily clan mission", inline=False)
+            embed.add_field(name="`alpha clan treasury`", value="View clan treasury", inline=False)
             await ctx.send(embed=embed)
 
     @clan.command(name="create")
@@ -192,16 +192,20 @@ class ClanSystem(commands.Cog, name="clans"):
 
         conn = get_db()
         c = conn.cursor()
-        c.execute(
-            "INSERT INTO clans (name, guild_id, leader_id, created_at) VALUES (?, ?, ?, ?)",
-            (name, ctx.guild.id, ctx.author.id, datetime.now(timezone.utc).isoformat())
-        )
-        clan_id = c.lastrowid
-        c.execute(
-            "INSERT INTO clan_members (clan_id, user_id, joined_at) VALUES (?, ?, ?)",
-            (clan_id, ctx.author.id, datetime.now(timezone.utc).isoformat())
-        )
-        conn.commit()
+        try:
+            c.execute(
+                "INSERT INTO clans (name, guild_id, leader_id, created_at) VALUES (?, ?, ?, ?)",
+                (name, ctx.guild.id, ctx.author.id, datetime.now(timezone.utc).isoformat())
+            )
+            clan_id = c.lastrowid
+            c.execute(
+                "INSERT INTO clan_members (clan_id, user_id, joined_at) VALUES (?, ?, ?)",
+                (clan_id, ctx.author.id, datetime.now(timezone.utc).isoformat())
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            await ctx.send(embed=self._make_embed("❌ Name Taken", 0xE74C3C, "A clan with that name already exists."))
+            return
 
 
         embed = discord.Embed(color=0x2ECC71)
@@ -363,7 +367,7 @@ class ClanSystem(commands.Cog, name="clans"):
         )
         conn.commit()
 
-        await ctx.send(embed=discord.Embed(color=0xF39C12, description=f"⚔️ **{my_clan['name']}** has challenged **{enemy_clan['name']}**!\n\nLeaders use `sudo clan accept` to start the war."))
+        await ctx.send(embed=discord.Embed(color=0xF39C12, description=f"⚔️ **{my_clan['name']}** has challenged **{enemy_clan['name']}**!\n\nLeaders use `alpha clan accept` to start the war."))
 
     @clan.command(name="accept")
     async def clan_accept(self, ctx: commands.Context) -> None:
@@ -393,7 +397,7 @@ class ClanSystem(commands.Cog, name="clans"):
         c.execute("UPDATE clan_wars SET status = 'active' WHERE id = ?", (war["id"],))
         conn.commit()
 
-        await ctx.send(embed=discord.Embed(color=0x2ECC71, description="⚔️ War accepted! Use `sudo clan attack <raid|ambush|siege>` to attack!"))
+        await ctx.send(embed=discord.Embed(color=0x2ECC71, description="⚔️ War accepted! Use `alpha clan attack <raid|ambush|siege>` to attack!"))
 
     @clan.command(name="attack")
     async def clan_attack(self, ctx: commands.Context, attack_type: str) -> None:
@@ -430,7 +434,7 @@ class ClanSystem(commands.Cog, name="clans"):
 
 
         if not active_war:
-            await ctx.send(embed=self._make_embed("❌ No Active War", 0xE74C3C, "Start a war with `sudo clan challenge <clan>` first."))
+            await ctx.send(embed=self._make_embed("❌ No Active War", 0xE74C3C, "Start a war with `alpha clan challenge <clan>` first."))
             return
 
         success = random.random()

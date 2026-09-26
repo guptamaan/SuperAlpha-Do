@@ -116,14 +116,14 @@ class ReactionRoles(commands.Cog, name="reactionroles"):
     @commands.command(name="reactionrole")
     @perms_or_developer(administrator=True)
     async def reactionrole(self, ctx: commands.Context, action: str = None) -> None:
-        """Manage reaction roles. Usage: sudo reactionrole [create|delete|list]"""
+        """Manage reaction roles. Usage: alpha reactionrole [create|delete|list]"""
         if not action:
             embed = discord.Embed(color=0x9B59B6)
             embed.set_author(name="📋 Reaction Roles")
             embed.description = "Available commands:"
-            embed.add_field(name="`sudo reactionrole create`", value="Create a new reaction role", inline=False)
-            embed.add_field(name="`sudo reactionrole delete`", value="Delete a reaction role", inline=False)
-            embed.add_field(name="`sudo reactionrole list`", value="List all reaction roles", inline=False)
+            embed.add_field(name="`alpha reactionrole create`", value="Create a new reaction role", inline=False)
+            embed.add_field(name="`alpha reactionrole delete`", value="Delete a reaction role", inline=False)
+            embed.add_field(name="`alpha reactionrole list`", value="List all reaction roles", inline=False)
             await ctx.send(embed=embed)
             return
 
@@ -147,13 +147,13 @@ class ReactionRoles(commands.Cog, name="reactionroles"):
 
             await msg.edit(embed=self._make_embed("📝 Step 2", 0x3498DB,
                 "Send the **message ID** or the **message link**.\n"
-                "For new message, type `new`"))
+                "For a new message, type `new`"))
             
             try:
                 msg_content = await self.bot.wait_for("message", check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=60)
                 msg_input = msg_content.content.strip()
 
-                if msg_input == "new":
+                if msg_input.lower() == "new":
                     await msg.edit(embed=self._make_embed("📝 Step 3", 0x3498DB, "Send the **message content** to post."))
                     try:
                         msg_text = await self.bot.wait_for("message", check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=60)
@@ -283,7 +283,7 @@ class ReactionRoles(commands.Cog, name="reactionroles"):
     @reactionrole.error
     async def reactionrole_error(self, ctx: commands.Context, error) -> None:
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission."))
+            await ctx.send(embed=self._make_embed("❌ Permission Denied", 0xE74C3C, "You need **Administrator** permissions."))
 
     @app_commands.command(name="reactionrole", description="Manage reaction roles")
     @app_commands.describe(action="Action to perform")
@@ -293,7 +293,7 @@ class ReactionRoles(commands.Cog, name="reactionroles"):
         app_commands.Choice(name="List", value="list"),
     ])
     async def slash_reactionrole(self, interaction: discord.Interaction, action: str) -> None:
-        await interaction.response.send_message("Use prefix command `sudo reactionrole` for interactive setup.", ephemeral=True)
+        await interaction.response.send_message("Use prefix command `alpha reactionrole` for interactive setup.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

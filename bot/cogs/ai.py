@@ -16,7 +16,7 @@ import discord
 from discord.ext import commands
 from openai import AsyncOpenAI
 
-log = logging.getLogger("SuperUser Do")
+log = logging.getLogger("SuperAlpha Do")
 
 MEMORY_DIR = pathlib.Path("data/ai_memory")
 DATABASE_FILE = "data/ai_memory.db"
@@ -253,11 +253,11 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="ai", aliases=["chat", "ask"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def ai_chat(self, ctx: commands.Context, *, question: str) -> None:
-        """Chat with AI. Remembers previous messages. Usage: sudo ai <question>"""
+        """Chat with AI. Remembers previous messages. Usage: alpha ai <question>"""
         await ctx.typing()
 
         system_prompt = (
-            "You are a helpful, witty, and friendly Discord bot assistant named SuperUser Do. "
+            "You are a helpful, witty, and friendly Discord bot assistant named SuperAlpha Do. "
             "Keep responses concise and friendly. Use markdown formatting when helpful. "
             "You can discuss programming, technology, general knowledge, and more. "
             "Be playful but helpful. Remember the conversation context."
@@ -280,7 +280,7 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="imagine", aliases=["generate", "draw", "img"])
     @commands.cooldown(1, 15, commands.BucketType.user)
     async def imagine(self, ctx: commands.Context, *, prompt: str) -> None:
-        """Generate an image prompt. Usage: sudo imagine <description>"""
+        """Generate an image prompt. Usage: alpha imagine <description>"""
         if len(prompt) < 5:
             embed = self._make_embed("Prompt Too Short", 0xE74C3C)
             embed.description = "Please provide a more detailed description."
@@ -322,7 +322,7 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="summarize", aliases=["summary"])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def summarize(self, ctx: commands.Context, *, text: str) -> None:
-        """Summarize text. Usage: sudo summarize <text>"""
+        """Summarize text. Usage: alpha summarize <text>"""
         if len(text) < 50:
             embed = self._make_embed("Text Too Short", 0xE74C3C)
             embed.description = "Please provide at least 50 characters to summarize."
@@ -365,7 +365,7 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="explain", aliases=["whatis"])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def explain(self, ctx: commands.Context, *, topic: str) -> None:
-        """Explain a concept simply. Usage: sudo explain <topic>"""
+        """Explain a concept simply. Usage: alpha explain <topic>"""
         await ctx.typing()
 
         system_prompt = (
@@ -397,7 +397,7 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="code")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def code_review(self, ctx: commands.Context, *, request: str) -> None:
-        """Get code help or generate code. Usage: sudo code <request>"""
+        """Get code help or generate code. Usage: alpha code <request>"""
         await ctx.typing()
 
         system_prompt = (
@@ -422,7 +422,7 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="aitranslate", aliases=["aitrans"])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def ai_translate(self, ctx: commands.Context, lang: str, *, text: str) -> None:
-        """Translate text using AI. Usage: sudo aitranslate <lang> <text>"""
+        """Translate text using AI. Usage: alpha aitranslate <lang> <text>"""
         await ctx.typing()
 
         system_prompt = (
@@ -461,13 +461,13 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="aihistory")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def ai_history(self, ctx: commands.Context) -> None:
-        """View your AI conversation history. Usage: sudo aihistory"""
+        """View your AI conversation history. Usage: alpha aihistory"""
         history = _load_history(ctx.author.id)
 
         if not history:
             embed = self._make_embed("AI History", 0x3498DB)
             embed.description = (
-                "No conversation history yet. Start chatting with `sudo ai`!"
+                "No conversation history yet. Start chatting with `alpha ai`!"
             )
             await ctx.send(embed=embed)
             return
@@ -493,10 +493,14 @@ class AI(commands.Cog, name="ai"):
     @commands.command(name="aiclear")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def ai_clear(self, ctx: commands.Context) -> None:
-        """Clear your AI conversation history. Usage: sudo aiclear"""
+        """Clear your AI conversation history. Usage: alpha aiclear"""
         path = MEMORY_DIR / f"{ctx.author.id}.json"
         if path.exists():
             path.unlink()
+
+        conn = get_db()
+        conn.execute("DELETE FROM memory WHERE user_id = ?", (ctx.author.id,))
+        conn.commit()
 
         embed = discord.Embed(color=0x2ECC71)
         embed.set_author(name="AI History Cleared", icon_url=None)

@@ -2,7 +2,7 @@
 cogs/linux.py — Arch/Linux-inspired command aliases.
 
 Linux aliases are added to every command but are locked until a server
-enables them with `sudo enable linux` (or `disable linux` to turn them off).
+enables them with `alpha enable linux` (or `disable linux` to turn them off).
 The developer/owner can always use them via the perms_or_developer gate.
 """
 

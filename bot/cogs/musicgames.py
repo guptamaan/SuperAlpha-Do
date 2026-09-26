@@ -98,7 +98,7 @@ class MusicGames(commands.Cog, name="musicgames"):
     @commands.command(name="guessthesong", aliases=["guesssong", "songquiz", "gts"])
     @commands.cooldown(1, 60, commands.BucketType.channel)
     async def guess_the_song(self, ctx: commands.Context, *, hint: str = "") -> None:
-        """Play Guess the Song in your VC. First correct answer wins XP. Usage: sudo guessthesong [hint]"""
+        """Play Guess the Song in your VC. First correct answer wins XP. Usage: alpha guessthesong [hint]"""
         guild_id = ctx.guild.id
         if guild_id in self._active:
             embed = self._make_embed(

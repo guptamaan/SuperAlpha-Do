@@ -1,5 +1,5 @@
 """
-SuperUser Do — A Linux-flavored all-in-one Discord bot.
+SuperAlpha Do — A Linux-flavored all-in-one Discord bot.
 Prefix: "alpha " or "Alpha " (with a trailing space, e.g. alpha ping),
 plus the bot mention and slash (/) commands.
 """
@@ -27,7 +27,7 @@ logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-log = logging.getLogger("SuperUser Do")
+log = logging.getLogger("SuperAlpha Do")
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
@@ -133,13 +133,7 @@ async def on_ready() -> None:
     guilds_file = "guilds.txt"
     current_guilds = {guild.id: guild.name for guild in bot.guilds}
 
-    with open(guilds_file, "w") as f:
-        for guild_id, guild_name in sorted(
-            current_guilds.items(), key=lambda x: x[1].lower()
-        ):
-            f.write(f"{guild_id} | {guild_name}\n")
-    log.info("Saved %d guilds to %s", len(current_guilds), guilds_file)
-
+    old_guilds = {}
     if os.path.exists(guilds_file):
         with open(guilds_file, "r") as f:
             for line in f:
@@ -148,15 +142,21 @@ async def on_ready() -> None:
                     continue
                 parts = line.split(" | ", 1)
                 if len(parts) == 2:
-                    guild_id_str, guild_name = parts
                     try:
-                        guild_id = int(guild_id_str)
-                        if guild_id not in current_guilds:
-                            log.warning(
-                                "Not in guild: %s (ID: %s)", guild_name, guild_id
-                            )
+                        old_guilds[int(parts[0])] = parts[1]
                     except ValueError:
                         pass
+
+    with open(guilds_file, "w") as f:
+        for guild_id, guild_name in sorted(
+            current_guilds.items(), key=lambda x: x[1].lower()
+        ):
+            f.write(f"{guild_id} | {guild_name}\n")
+    log.info("Saved %d guilds to %s", len(current_guilds), guilds_file)
+
+    for guild_id, guild_name in old_guilds.items():
+        if guild_id not in current_guilds:
+            log.warning("Not in guild: %s (ID: %s)", guild_name, guild_id)
 
 
 @bot.event
@@ -318,10 +318,10 @@ async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
 
     from bot.cogs.journal import _run_as
 
-    prompt = f"Did you mean: `{candidates[0]}`?  (y / n / hint)"
+    prompt = f"Did you mean: `{candidates[0]}`? (y / n / hint)"
     body_lines = [
         f"$ {prefix} {invoked}",
-        f"bash: {invoked}: command not found",
+        f"bash: `{invoked}`: command not found",
         prompt,
     ]
     body = "```bash\n" + "\n".join(body_lines) + "\n```"

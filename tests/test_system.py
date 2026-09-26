@@ -116,3 +116,64 @@ async def test_unloadcog_protects_system(bot):
     await cog.unloadcog.callback(cog, ctx, "system")
     assert "cannot unload system cog" in ctx.send.await_args.args[0]
     bot.unload_extension.assert_not_awaited()
+
+
+ISSUE_PAYLOAD = {
+    "number": 42,
+    "title": "Fix the thing",
+    "state": "open",
+    "body": "The thing is broken.",
+    "user": {"login": "tester"},
+    "labels": [{"name": "bug"}, {"name": "good first issue"}],
+    "comments": 3,
+    "created_at": "2026-01-02T03:04:05Z",
+    "html_url": "https://github.com/guptamaan/SuperAlpha-Do/issues/42",
+}
+
+PR_PAYLOAD = {
+    **ISSUE_PAYLOAD,
+    "merged": False,
+    "merged_at": None,
+    "mergeable": True,
+    "commits": 5,
+    "additions": 120,
+    "deletions": 30,
+    "changed_files": 4,
+    "base": {"ref": "main"},
+    "head": {"ref": "feature/x"},
+    "html_url": "https://github.com/guptamaan/SuperAlpha-Do/pull/42",
+}
+
+
+async def test_issue_shows_embed(bot, monkeypatch):
+    cog = System(bot)
+    monkeypatch.setattr("bot.cogs.system._gh_issue", AsyncMock(return_value=ISSUE_PAYLOAD))
+    ctx = make_ctx(bot)
+    await cog.issue.callback(cog, ctx, 42)
+    embed = ctx.send.await_args.kwargs["embed"]
+    assert "42" in embed.title and "Fix the thing" in embed.title
+    by_name = {f.name: f.value for f in embed.fields}
+    assert by_name["State"] == "Open"
+    assert "`bug`" in by_name["Labels"]
+    assert by_name["Comments"] == "3"
+    assert embed.url == ISSUE_PAYLOAD["html_url"]
+
+
+async def test_pr_shows_merge_info(bot, monkeypatch):
+    cog = System(bot)
+    monkeypatch.setattr("bot.cogs.system._gh_pr", AsyncMock(return_value=PR_PAYLOAD))
+    ctx = make_ctx(bot)
+    await cog.pr.callback(cog, ctx, 42)
+    embed = ctx.send.await_args.kwargs["embed"]
+    assert "🟢 open" in embed.title
+    by_name = {f.name: f.value for f in embed.fields}
+    assert by_name["Base → Head"] == "`main` → `feature/x`"
+    assert "+120 −30" in by_name["Merge"]
+
+
+async def test_issue_missing_payload(bot, monkeypatch):
+    cog = System(bot)
+    monkeypatch.setattr("bot.cogs.system._gh_issue", AsyncMock(return_value=None))
+    ctx = make_ctx(bot)
+    await cog.issue.callback(cog, ctx, 9999)
+    assert "Resource not found or GitHub unreachable" in ctx.send.await_args.args[0]

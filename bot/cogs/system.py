@@ -1,7 +1,7 @@
 """
 bot/cogs/system.py — System-level bot management commands.
 Commands: ping, uptime, man, reload, shutdown, status, htop, loadcog, unloadcog,
-          prefix, invite, latency
+          prefix, invite, latency, git, issue, pr
 """
 
 import asyncio
@@ -16,7 +16,7 @@ from discord.ext import commands
 
 import bot.cogs.journal as _journal
 from bot.config.settings import INVITE_URL, OWNER_HANDLE, SUPPORT_SERVER
-from bot.services.git_ops import GIT_REPO, _git_date, _latest_commits, _local_head, _local_latest
+from bot.services.git_ops import GIT_REPO, _gh_issue, _gh_pr, _git_date, _latest_commits, _local_head, _local_latest
 from bot.services.host_health import START_TIME, _bar, _bot_age, _cpu_usage, _load_avg, _mem_info, _task_count
 from bot.services.man_search import ManSearchView, ManView, _make_man_embed, _search_commands
 
@@ -39,14 +39,14 @@ class System(commands.Cog, name="system"):
     @commands.command(name="ping", aliases=["uname"])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def ping(self, ctx: commands.Context) -> None:
-        """Check bot latency. Usage: sudo ping"""
+        """Check bot latency. Usage: alpha ping"""
         import time as _t
         before = _t.monotonic()
-        msg = await ctx.send("```bash\n$ sudo ping discord.com\nPinging…\n```")
+        msg = await ctx.send("```bash\n$ alpha ping discord.com\nPinging…\n```")
         rtt = round((_t.monotonic() - before) * 1000)
         ws  = self._ws_ms()
         await msg.edit(content=(
-            f"```bash\n$ sudo ping discord.com\n"
+            f"```bash\n$ alpha ping discord.com\n"
             f"PING discord.com: 64 bytes\n"
             f"icmp_seq=1  ws={ws} ms  rtt={rtt} ms\n```"
         ))
@@ -54,20 +54,20 @@ class System(commands.Cog, name="system"):
     # ── latency ───────────────────────────────────────────────────────────────
     @commands.command(name="latency", aliases=["lag", "netstat"])
     async def latency(self, ctx: commands.Context) -> None:
-        """Show WebSocket latency. Usage: sudo latency"""
+        """Show WebSocket latency. Usage: alpha latency"""
         ws = self._ws_ms()
         bar_filled = min(int(ws / 10), 20)
         bar = "█" * bar_filled + "░" * (20 - bar_filled)
         quality = "excellent" if ws < 80 else "good" if ws < 150 else "poor"
         await ctx.send(
-            f"```bash\n$ sudo latency\n"
+            f"```bash\n$ alpha latency\n"
             f"WebSocket: {ws} ms  [{bar}]  {quality}\n```"
         )
 
     # ── uptime ────────────────────────────────────────────────────────────────
     @commands.command(name="uptime", aliases=["up"])
     async def uptime(self, ctx: commands.Context) -> None:
-        """Show how long the bot has been running. Usage: sudo uptime"""
+        """Show how long the bot has been running. Usage: alpha uptime"""
         elapsed = int(time.time() - START_TIME)
         days, rem = divmod(elapsed, 86400)
         hours, rem = divmod(rem, 3600)
@@ -136,6 +136,77 @@ class System(commands.Cog, name="system"):
 
         embed.set_footer(text=f"{ctx.prefix}git · github.com/{GIT_REPO}")
         await ctx.send(embed=embed)
+
+    # ── issue / pr ────────────────────────────────────────────────────────────
+    @staticmethod
+    def _gh_item_embed(item: dict, kind: str) -> discord.Embed:
+        """Shared embed for a fetched GitHub issue or pull request."""
+        number = item.get("number", "?")
+        state = item.get("state", "?")
+        merged_at = item.get("merged_at")
+        merged = bool(merged_at) or bool(item.get("merged"))
+        emoji = "✅ merged" if merged else "🟢 open" if state == "open" else "🔴 closed"
+        title = (item.get("title") or "?").strip()
+        color = 0x2ECC71 if merged or state == "open" else 0xE74C3C
+
+        embed = discord.Embed(
+            title=f"{emoji} #{number} — {title[:240]}",
+            url=item.get("html_url") or f"https://github.com/{GIT_REPO}/{kind}/{number}",
+            color=color,
+            description=(item.get("body") or "_No description._").strip()[:1024] or "_No description._",
+        )
+        author = (item.get("user") or {}).get("login") or "?"
+        embed.set_author(name=author, url=item.get("html_url"))
+
+        embed.add_field(name="State", value=state.title(), inline=True)
+        labels = ",".join(f"`{l.get('name', '?')}`" for l in (item.get("labels") or []))
+        if labels:
+            embed.add_field(name="Labels", value=labels[:1024], inline=True)
+        embed.add_field(name="Comments", value=str(item.get("comments", 0)), inline=True)
+
+        if kind == "pulls":
+            base = (item.get("base") or {}).get("ref") or "?"
+            head = (item.get("head") or {}).get("ref") or "?"
+            embed.add_field(name="Base → Head", value=f"`{base}` → `{head}`", inline=False)
+            merged_summary = "merged" if merged else (
+                "✅ mergeable" if item.get("mergeable") else "⚠️ conflicts")
+            embed.add_field(
+                name="Merge",
+                value=f"{merged_summary} · {item.get('commits', '?')} commits · "
+                      f"+{item.get('additions', '?')} −{item.get('deletions', '?')} · "
+                      f"{item.get('changed_files', '?')} files",
+                inline=True,
+            )
+            if merged_at:
+                embed.add_field(name="Merged", value=_git_date(merged_at), inline=True)
+
+        created = item.get("created_at")
+        embed.set_footer(text=f"alpha {kind[:-1]} #{number} · opened {_git_date(created)} · github.com/{GIT_REPO}")
+        return embed
+
+    @commands.command(name="issue", aliases=["issues", "bug"])
+    async def issue(self, ctx: commands.Context, number: int) -> None:
+        """Look up a GitHub issue by number. Usage: alpha issue <number>"""
+        item = await _gh_issue(number)
+        if item is None:
+            await ctx.send(
+                f"```bash\n$ alpha issue {number}\n"
+                f"Resource not found or GitHub unreachable (github.com/{GIT_REPO}).\n```"
+            )
+            return
+        await ctx.send(embed=self._gh_item_embed(item, "issues"))
+
+    @commands.command(name="pr", aliases=["pull", "pullrequest", "pull-request"])
+    async def pr(self, ctx: commands.Context, number: int) -> None:
+        """Look up a GitHub pull request by number. Usage: alpha pr <number>"""
+        item = await _gh_pr(number)
+        if item is None:
+            await ctx.send(
+                f"```bash\n$ alpha pr {number}\n"
+                f"Resource not found or GitHub unreachable (github.com/{GIT_REPO}).\n```"
+            )
+            return
+        await ctx.send(embed=self._gh_item_embed(item, "pulls"))
 
     # ── man ───────────────────────────────────────────────────────────────────
     @commands.command(name="man", aliases=["help", "--help", "-h", "ls"])
@@ -213,7 +284,7 @@ class System(commands.Cog, name="system"):
     # ── status ────────────────────────────────────────────────────────────────
     @commands.command(name="status", aliases=["sysinfo"])
     async def status(self, ctx: commands.Context) -> None:
-        """Display bot system status. Usage: sudo status"""
+        """Display bot system status. Usage: alpha status"""
         guilds  = len(self.bot.guilds)
         users   = sum(g.member_count or 0 for g in self.bot.guilds)
         latency = self._ws_ms()
@@ -224,7 +295,7 @@ class System(commands.Cog, name="system"):
         cogs_loaded = len(self.bot.cogs)
         cmds_total  = len(self.bot.commands)
 
-        embed = discord.Embed(title="⚙️  System Status — SuperUser Do", color=0x1ABC9C)
+        embed = discord.Embed(title="⚙️  System Status — SuperAlpha Do", color=0x1ABC9C)
         embed.add_field(name="🏓 Latency",    value=f"{latency} ms",                              inline=True)
         embed.add_field(name="🖥️  Guilds",    value=str(guilds),                                  inline=True)
         embed.add_field(name="👥 Users",      value=str(users),                                   inline=True)
@@ -241,7 +312,7 @@ class System(commands.Cog, name="system"):
     @commands.command(name="htop")
     @commands.cooldown(1, 45, commands.BucketType.channel)
     async def htop(self, ctx: commands.Context) -> None:
-        """Live terminal-style health dashboard. Usage: sudo htop"""
+        """Live terminal-style health dashboard. Usage: alpha htop"""
         desc = "```bash\n" + self._htop_block(ctx) + "\n```"
         embed = discord.Embed(title="🖥️  htop — live dashboard", description=desc, color=0x1ABC9C)
         embed.set_footer(text="Live refresh · react ⏹ to stop")
@@ -301,8 +372,8 @@ class System(commands.Cog, name="system"):
         cpu_pct = float(cpu.strip("%")) if cpu.endswith("%") else 0.0
         mem = _mem_info()
 
-        bot_name = _journal._clean(getattr(self.bot.user, "name", None) or "sudo")[:14]
-        lines = ["$ sudo htop"]
+        bot_name = _journal._clean(getattr(self.bot.user, "name", None) or "alpha")[:14]
+        lines = ["$ alpha htop"]
         lines.append(
             f"{bot_name:<22} up {_bot_age():<16} "
             f"Tasks: {tasks if tasks is not None else 'n/a'}"
@@ -408,12 +479,12 @@ class System(commands.Cog, name="system"):
     # ── invite ────────────────────────────────────────────────────────────────
     @commands.command(name="invite")
     async def invite(self, ctx: commands.Context) -> None:
-        """Generate bot invite link. Usage: sudo invite"""
+        """Generate bot invite link. Usage: alpha invite"""
         embed = discord.Embed(
-            title="🐧 Add SuperUser Do to your server",
+            title="🐧 Add SuperAlpha Do to your server",
             description=(
-                f"🔗 [Click to invite SuperUser Do]({INVITE_URL})\n"
-                "```bash\n$ sudo invite\nInvite URL generated.\n```"
+                f"🔗 [Click to invite SuperAlpha Do]({INVITE_URL})\n"
+                "```bash\n$ alpha invite\nInvite URL generated.\n```"
             ),
             color=0x2ECC71,
         )
@@ -433,48 +504,48 @@ class System(commands.Cog, name="system"):
     @commands.command(name="reload", hidden=True)
     @commands.is_owner()
     async def reload(self, ctx: commands.Context, cog: str) -> None:
-        """[Owner] Reload a cog. Usage: sudo reload <cog>"""
+        """[Owner] Reload a cog. Usage: alpha reload <cog>"""
         ext = f"bot.cogs.{cog}"
         try:
             await self.bot.reload_extension(ext)
-            await ctx.send(f"```bash\n$ sudo reload {cog}\nModule '{ext}' reloaded successfully.\n```")
+            await ctx.send(f"```bash\n$ alpha reload {cog}\nModule '{ext}' reloaded successfully.\n```")
         except Exception as exc:
-            await ctx.send(f"```bash\nsudo: reload: {exc}\n```")
+            await ctx.send(f"```bash\nalpha: reload: {exc}\n```")
 
     # ── loadcog ───────────────────────────────────────────────────────────────
     @commands.command(name="loadcog", hidden=True)
     @commands.is_owner()
     async def loadcog(self, ctx: commands.Context, cog: str) -> None:
-        """[Owner] Load a cog. Usage: sudo loadcog <cog>"""
+        """[Owner] Load a cog. Usage: alpha loadcog <cog>"""
         ext = f"bot.cogs.{cog}"
         try:
             await self.bot.load_extension(ext)
-            await ctx.send(f"```bash\n$ sudo loadcog {cog}\nModule '{ext}' loaded.\n```")
+            await ctx.send(f"```bash\n$ alpha loadcog {cog}\nModule '{ext}' loaded.\n```")
         except Exception as exc:
-            await ctx.send(f"```bash\nsudo: loadcog: {exc}\n```")
+            await ctx.send(f"```bash\nalpha: loadcog: {exc}\n```")
 
     # ── unloadcog ─────────────────────────────────────────────────────────────
     @commands.command(name="unloadcog", hidden=True)
     @commands.is_owner()
     async def unloadcog(self, ctx: commands.Context, cog: str) -> None:
-        """[Owner] Unload a cog. Usage: sudo unloadcog <cog>"""
+        """[Owner] Unload a cog. Usage: alpha unloadcog <cog>"""
         if cog == "system":
-            await ctx.send("```bash\nsudo: unloadcog: cannot unload system cog\n```")
+            await ctx.send("```bash\nalpha: unloadcog: cannot unload system cog\n```")
             return
         ext = f"bot.cogs.{cog}"
         try:
             await self.bot.unload_extension(ext)
-            await ctx.send(f"```bash\n$ sudo unloadcog {cog}\nModule '{ext}' unloaded.\n```")
+            await ctx.send(f"```bash\n$ alpha unloadcog {cog}\nModule '{ext}' unloaded.\n```")
         except Exception as exc:
-            await ctx.send(f"```bash\nsudo: unloadcog: {exc}\n```")
+            await ctx.send(f"```bash\nalpha: unloadcog: {exc}\n```")
 
     # ── shutdown ──────────────────────────────────────────────────────────────
     @commands.command(name="shutdown", aliases=["halt", "poweroff"], hidden=True)
     @commands.is_owner()
     async def shutdown(self, ctx: commands.Context) -> None:
-        """Gracefully shut down the bot. Usage: sudo shutdown"""
+        """Gracefully shut down the bot. Usage: alpha shutdown"""
         await ctx.send(
-            "```bash\n$ sudo shutdown now\n"
+            "```bash\n$ alpha shutdown now\n"
             "Broadcast message: The system is going down NOW!\n```"
         )
         await self.bot.close()
@@ -486,11 +557,11 @@ class System(commands.Cog, name="system"):
         """Slash command version of ping."""
         import time as _t
         before = _t.monotonic()
-        await interaction.response.send_message("```bash\n$ sudo ping discord.com\nPinging…\n```")
+        await interaction.response.send_message("```bash\n$ alpha ping discord.com\nPinging…\n```")
         rtt = round((_t.monotonic() - before) * 1000)
         ws = self._ws_ms()
         await interaction.edit_original_response(content=(
-            f"```bash\n$ sudo ping discord.com\n"
+            f"```bash\n$ alpha ping discord.com\n"
             f"PING discord.com: 64 bytes\n"
             f"icmp_seq=1  ws={ws} ms  rtt={rtt} ms\n```"
         ))
@@ -521,7 +592,7 @@ class System(commands.Cog, name="system"):
         cogs_loaded = len(self.bot.cogs)
         cmds_total = len(self.bot.commands)
 
-        embed = discord.Embed(title="⚙️  System Status — SuperUser Do", color=0x1ABC9C)
+        embed = discord.Embed(title="⚙️  System Status — SuperAlpha Do", color=0x1ABC9C)
         embed.add_field(name="🏓 Latency", value=f"{latency} ms", inline=True)
         embed.add_field(name="🖥️  Guilds", value=str(guilds), inline=True)
         embed.add_field(name="👥 Users", value=str(users), inline=True)
@@ -538,10 +609,10 @@ class System(commands.Cog, name="system"):
     async def slash_invite(self, interaction: discord.Interaction) -> None:
         """Slash command version of invite."""
         embed = discord.Embed(
-            title="🐧 Add SuperUser Do to your server",
+            title="🐧 Add SuperAlpha Do to your server",
             description=(
-                f"🔗 [Click to invite SuperUser Do]({INVITE_URL})\n"
-                "```bash\n$ sudo invite\nInvite URL generated.\n```"
+                f"🔗 [Click to invite SuperAlpha Do]({INVITE_URL})\n"
+                "```bash\n$ alpha invite\nInvite URL generated.\n```"
             ),
             color=0x2ECC71,
         )

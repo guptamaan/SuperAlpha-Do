@@ -173,7 +173,7 @@ class SpamGame(commands.Cog, name="spam"):
         if self.bot.owner_id and ctx.author.id == self.bot.owner_id:
             return True
         embed = self._make_embed(
-            "❌ Permission Denied", 0xE74C3C, "You need **Administrator** permission."
+            "❌ Permission Denied", 0xE74C3C, "You need **Administrator** permissions."
         )
         await ctx.send(embed=embed)
         return False
@@ -187,9 +187,9 @@ USAGE: alpha spam [subcommand]
 
 SUBCOMMANDS
     status    Show the game state, current streak, and best streak.
-    channel   Pick the channel the game runs in.  e.g. alpha spam channel #spam
+    channel   Pick the channel the game runs in, e.g. alpha spam channel #spam
     word      Choose the exact word/emoji everyone must send.
-              e.g. alpha spam word lol  or  alpha spam word 😂
+              e.g. alpha spam word lol or alpha spam word 😂
     start     Begin a fresh chain (needs a channel and a word set first).
     stop      Pause the game, keeping the best streak on record.
     reset     Reset the streak and best streak back to zero.
@@ -261,7 +261,7 @@ EXAMPLES
 
         if not cfg.get("enabled"):
             embed.set_footer(
-                text=f"Setup: `{ctx.prefix}spam channel #channel` then `{ctx.prefix}spam word <target>` and `{ctx.prefix}spam start` "
+                text=f"Setup: `{ctx.prefix}spam channel #channel` then `{ctx.prefix}spam word <target>` and `{ctx.prefix}spam start`"
             )
         await ctx.send(embed=embed)
 
@@ -288,7 +288,7 @@ EXAMPLES
             return
         target = rest.strip()
         if len(target) > 64:
-            embed = self._make_embed("❌ Too Long", 0xE74C3C, "Keep the target under 64 characters.")
+            embed = self._make_embed("❌ Too Long", 0xE74C3C, "Keep the target 64 characters or fewer.")
             await ctx.send(embed=embed)
             return
         cfg["word"] = target
@@ -369,6 +369,7 @@ EXAMPLES
         try:
             msg = await channel.send(embed=self._scoreboard_embed(cfg))
             cfg["score_msg_id"] = msg.id
+            set_config(channel.guild.id, cfg)
         except Exception:
             pass
 
@@ -394,7 +395,7 @@ EXAMPLES
         if not content:
             return
         lowered = content.lower()
-        if lowered.startswith(("alpha ", "sudo ")):
+        if lowered.startswith(("alpha ",)):
             return
 
         target = _normalise(cfg.get("word") or "")
