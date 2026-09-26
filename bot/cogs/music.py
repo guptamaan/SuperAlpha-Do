@@ -1,5 +1,5 @@
 """
-cogs/music.py — Music commands (yt-dlp + FFmpeg, no lavalink needed).
+bot/cogs/music.py — Music commands (yt-dlp + FFmpeg, no lavalink needed).
 Commands: join, leave, play, pause, resume, stop, skip, queue, revive,
           nowplaying, volume, shuffle, loop, remove, clear, radio
 
@@ -24,7 +24,20 @@ import yt_dlp
 from discord import app_commands
 from discord.ext import commands
 
-from cogs.checks import perms_or_developer
+from bot.cogs.checks import perms_or_developer
+from bot.services.music import (
+    classify_ytdl_error,
+    extract_info,
+    fetch_metadata,
+    get_ffmpeg_opts,
+    get_ytdl_opts,
+    is_apple_url,
+    is_soundcloud_url,
+    is_spotify_url,
+    build_filter_string,
+    youtube_search_query,
+)
+from bot.services.music.models import GuildPlayer, Track
 
 EMOJI_MUSIC_PLAY = "<a:musicplay:1485243787084042270>"
 EMOJI_MUSIC_PAUSE = "<a:musicpause:1485244346386350111>"
@@ -35,112 +48,10 @@ EMOJI_MUSIC_LOOP = "<a:musicloop:1485246094505017515>"
 EMOJI_MUSIC_VOL = "<a:musicvol:1485246400940867695>"
 EMOJI_MUSIC_QUEUE = "<a:musicqueue:1485246769318072431>"
 
-BASE_YTDL_OPTS = {
-    "format": "bestaudio/best",
-    "quiet": True,
-    "no_warnings": True,
-    "default_search": "ytsearch",
-    "noplaylist": True,
-    "extract_flat": False,
-    "socket_timeout": 20,
-    "http_headers": {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate",
-        "Connection": "keep-alive",
-    },
-    "js_runtimes": {"node": {"cmd": ["node"]}},
-}
-
-
-def get_ytdl_opts() -> dict:
-    opts = BASE_YTDL_OPTS.copy()
-    cookies_file = "cookies.txt"
-    if os.path.exists(cookies_file):
-        if os.path.getsize(cookies_file) > 0:
-            opts["cookiefile"] = cookies_file
-        else:
-            print("Warning: cookies.txt exists but is empty")
-    return opts
-
-
-def get_ffmpeg_opts(filter_str: str = "") -> dict:
-    before = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -thread_queue_size 8192"
-    options = "-vn -bufsize 384k -maxrate 256k"
-    if filter_str:
-        options += f' -af "{filter_str}"'
-    return {
-        "before_options": before,
-        "options": options,
-    }
-
-
-class Track:
-    __slots__ = ("title", "url", "stream_url", "duration", "requester")
-
-    def __init__(self, data: dict, requester: discord.Member) -> None:
-        self.title: str = data.get("title", "Unknown")
-        self.url: str = data.get("webpage_url", data.get("url", ""))
-        self.stream_url: str = data.get("url", "")
-        self.duration: int = data.get("duration", 0)
-        self.requester: discord.Member = requester
-
-    def fmt_duration(self) -> str:
-        m, s = divmod(self.duration, 60)
-        h, m = divmod(m, 60)
-        return f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
-
-
-class GuildPlayer:
-    def __init__(self, guild_id: int) -> None:
-        self.guild_id: int = guild_id
-        self.queue: deque[Track] = deque()
-        self.current: Track | None = None
-        self.last_track: Track | None = None
-        self.volume: float = 1.0
-        self.loop: bool = False
-        self.autoplay: bool = False
-        self.bassboost: bool = False
-        self.nightcore: bool = False
-        self.eight_d: bool = False
-        self.slowed: bool = False
-        self.equalizer: str = "flat"
-        self.skip_event: asyncio.Event = asyncio.Event()
-        self.original_nick: str | None = None
-        self.text_channel: discord.TextChannel | None = None
-        self.skip_votes: set[int] = set()
-        self.vote_msg_id: int | None = None
-        self._start_time: float = 0
-        self._paused_time: float = 0
-        self.game_active: bool = False
-
-
-def build_filter_string(player: GuildPlayer) -> str:
-    filters = []
-    if player.bassboost:
-        filters.append("bass=g=15")
-    if player.nightcore:
-        filters.append("asetrate=48000*1.25,aresample=48000")
-    if player.eight_d:
-        filters.append("aecho=0.8:0.9:50:0.5,aecho=0.8:0.9:70:0.4,apulsator=hz=0.3,stereowiden=1.5")
-    if player.slowed:
-        filters.append("asetrate=44100*0.75,aresample=44100,aecho=0.8:0.88:60:0.4")
-    eq = player.equalizer.lower()
-    if eq != "flat" and eq:
-        eq_presets = {
-            "bass": "equalizer=f=100:width_type=o:width=2:g=15",
-            "treble": "equalizer=f=3000:width_type=o:width=2:g=10",
-            "pop": "equalizer=f=500:width_type=o:width=2:g=6,equalizer=f=3000:width_type=o:width=2:g=6",
-            "rock": "equalizer=f=100:width_type=o:width=2:g=8,equalizer=f=5000:width_type=o:width=2:g=8",
-            "jazz": "equalizer=f=200:width_type=o:width=2:g=5,equalizer=f=4000:width_type=o:width=2:g=5",
-            "classical": "equalizer=f=300:width_type=o:width=2:g=5,equalizer=f=2000:width_type=o:width=2:g=5",
-            "electronic": "equalizer=f=100:width_type=o:width=2:g=12,equalizer=f=5000:width_type=o:width=2:g=8",
-        }
-        if eq in eq_presets:
-            filters.append(eq_presets[eq])
-    return ",".join(filters) if filters else ""
-
+__all__ = [
+    "Music", "Track", "GuildPlayer",
+    "build_filter_string", "get_ffmpeg_opts", "get_ytdl_opts",
+]
 
 class Music(commands.Cog, name="music"):
     """Music playback commands (YouTube via yt-dlp)."""
@@ -238,99 +149,43 @@ class Music(commands.Cog, name="music"):
             self._players[guild_id] = GuildPlayer(guild_id)
         return self._players[guild_id]
 
-    def _is_spotify_url(self, url: str) -> bool:
-        return "spotify.com" in url.lower()
-
-    def _is_apple_url(self, url: str) -> bool:
-        url_lower = url.lower()
-        return "music.apple.com" in url_lower or "itunes.apple.com" in url_lower
-
-    def _is_soundcloud_url(self, url: str) -> bool:
-        return "soundcloud.com" in url.lower()
-
-    def _is_playable_url(self, url: str) -> bool:
-        supported = [
-            "youtube.com", "youtu.be", "youtube.com/watch",
-            "soundcloud.com", "spotify.com", "music.apple.com",
-            "itunes.apple.com", "bandcamp.com", "twitch.tv",
-        ]
-        return any(s in url.lower() for s in supported)
-
-    def _get_youtube_search_query(self, query: str) -> str:
-        return f"ytsearch1:{query}"
-
-    def _classify_ytdl_error(self, error: Exception) -> str:
-        """Turn a yt-dlp exception into a human-friendly message."""
-        msg = str(error)
-        low = msg.lower()
-        if any(k in low for k in (
-            "cookies", "cookie not found", "sign in to confirm", "logged out",
-            "logged_out", "must provide login", "use cookies",
-        )):
-            return (
-                "**YouTube cookie expired or bot-check triggered.**\n"
-                "Refresh `cookies.txt`, restart the bot, or update yt-dlp "
-                "with `pip install -U yt-dlp`."
-            )
-        if any(k in low for k in (
-            "video unavailable", "unavailable", "has been removed",
-            "private video", "age-restricted", "age restriction",
-        )):
-            return "That video is unavailable (removed, private, age-restricted, or region-locked)."
-        if any(k in low for k in ("429", "too many requests", "request has been blocked", "rate limit", "repeated request")):
-            return "YouTube is rate-limiting the bot. Wait a minute and try again."
-        if "not a valid url" in low or "unsupported url" in low:
-            return (
-                "That doesn't look like a link I can play. Try a YouTube, "
-                "SoundCloud, Bandcamp, Spotify, or Apple Music link, or a search term."
-            )
-        return f"Could not fetch that track: `{msg[:200]}`"
-
     async def _fetch_track(self, query: str, requester: discord.Member) -> Track | None:
-        loop = asyncio.get_running_loop()
-        ydl_opts = get_ytdl_opts()
-
         search_query = query
         is_external_url = query.startswith("http")
 
         if is_external_url:
-            if self._is_spotify_url(query):
+            if is_spotify_url(query):
                 try:
-                    info = await self._get_spotify_track_info(query)
+                    info = await fetch_metadata(query, require_artist=True)
                     if info:
                         search_query = f"{info['title']} {info['artist']}"
                         print(f"Spotify detected, searching YouTube for: {search_query}")
                 except Exception as e:
                     print(f"Spotify info error: {e}")
 
-            elif self._is_apple_url(query):
+            elif is_apple_url(query):
                 try:
-                    info = await self._get_apple_track_info(query)
+                    info = await fetch_metadata(query, require_artist=False)
                     if info:
                         search_query = f"{info['title']} {info['artist']}"
                         print(f"Apple Music detected, searching YouTube for: {search_query}")
                 except Exception as e:
                     print(f"Apple Music info error: {e}")
 
-            elif self._is_soundcloud_url(query):
+            elif is_soundcloud_url(query):
                 print(f"SoundCloud URL detected: {query}")
 
         try:
-            ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
-
-            if search_query.startswith("http"):
-                full_query = search_query
-            else:
-                full_query = self._get_youtube_search_query(search_query)
-
-            self._last_fetch_error = None
-            data = await loop.run_in_executor(
-                None,
-                functools.partial(ytdl_instance.extract_info, full_query, download=False),
+            full_query = (
+                search_query
+                if search_query.startswith("http")
+                else youtube_search_query(search_query)
             )
+            self._last_fetch_error = None
+            data = await extract_info(full_query)
         except Exception as e:
             print(f"yt-dlp error: {e}")
-            self._last_fetch_error = self._classify_ytdl_error(e)
+            self._last_fetch_error = classify_ytdl_error(e)
             return None
 
         if data is None:
@@ -343,49 +198,6 @@ class Music(commands.Cog, name="music"):
 
         return Track(data, requester)
 
-    async def _get_spotify_track_info(self, url: str) -> dict | None:
-        loop = asyncio.get_running_loop()
-        try:
-            ydl_opts = {
-                "quiet": True,
-                "skip_download": True,
-                "extract_flat": False,
-            }
-            ytdl = yt_dlp.YoutubeDL(ydl_opts)
-            info = await loop.run_in_executor(
-                None,
-                functools.partial(ytdl.extract_info, url, download=False),
-            )
-            if info:
-                title = info.get("title", "")
-                artist = info.get("artist", "") or info.get("uploader", "")
-                if title and artist:
-                    return {"title": title, "artist": artist}
-        except Exception:
-            pass
-        return None
-
-    async def _get_apple_track_info(self, url: str) -> dict | None:
-        loop = asyncio.get_running_loop()
-        try:
-            ydl_opts = {
-                "quiet": True,
-                "skip_download": True,
-                "extract_flat": False,
-            }
-            ytdl = yt_dlp.YoutubeDL(ydl_opts)
-            info = await loop.run_in_executor(
-                None,
-                functools.partial(ytdl.extract_info, url, download=False),
-            )
-            if info:
-                title = info.get("title", "")
-                artist = info.get("artist", "") or info.get("uploader", "")
-                if title:
-                    return {"title": title, "artist": artist}
-        except Exception:
-            pass
-        return None
 
     def _schedule_play_next(self, guild_id: int) -> None:
         """Schedule _play_next on the bot loop and surface any errors."""
@@ -682,11 +494,11 @@ class Music(commands.Cog, name="music"):
 
         is_external = query.startswith("http")
         if is_external:
-            if self._is_spotify_url(query):
+            if is_spotify_url(query):
                 msg = await ctx.send(embed=self._make_embed("🔍 Spotify Detected", 0x1DB954, "Finding on YouTube..."))
-            elif self._is_apple_url(query):
+            elif is_apple_url(query):
                 msg = await ctx.send(embed=self._make_embed("🔍 Apple Music Detected", 0xFC3C44, "Finding on YouTube..."))
-            elif self._is_soundcloud_url(query):
+            elif is_soundcloud_url(query):
                 msg = await ctx.send(embed=self._make_embed("🔍 SoundCloud Detected", 0xFF5500, "Loading..."))
             else:
                 msg = await ctx.send(embed=self._make_embed("🔍 Searching...", 0x1DB954, query))

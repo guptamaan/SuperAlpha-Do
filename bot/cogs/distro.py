@@ -4,205 +4,87 @@ The bot picks a random image from the distro/ folder and posts it with a
 "guess the distro" prompt. The first person to name the distro correctly
 wins XP and SP; the image message is then deleted.
 
-Per-distro metadata (difficulty tier + hints) lives in distro/names.json.
-Rounds get hints at 45s and 150s, each cutting the reward by 60%, and
-expire after 180s if nobody answers. Wrong guesses are throttled to
-one per ~2.5s per user to stop guess-spamming.
-
-The feature is per-guild opt-in: `alpha enable distro` / `alpha disable distro`.
-When enabled, the bot also auto-spawns rounds into random channels on a
-random 20-40 minute timer.
-
-Data stored in data/distro/ (enabled guilds + stats).
-Commands: distro, distro spawn, distro end, distro stats, distro channel [channel|clear]
+Persistence lives in ``bot.models.distro_store``; game rules (tiers, hints,
+answer matching) in ``bot.services.distro_game``. This module re-exports those
+symbols so existing imports (``from bot.cogs.distro import _tier_for``) work.
 """
 
 import asyncio
-import json
-import pathlib
 import random
 import time
 
 import discord
 from discord.ext import commands
 
-from cogs.xp import award_game_xp, load_user
-
-DISTRO_DIR = pathlib.Path("distro")
-ENABLED_FILE = pathlib.Path("data/distro/enabled.json")
-STATS_FILE = pathlib.Path("data/distro/stats.json")
-METADATA_FILE = DISTRO_DIR / "names.json"
-
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
-MANAGED_FILES = {"names.json", ".gitkeep"}
-
-FIRST_HINT_DELAY = 45    # seconds after spawn: first hint
-SECOND_HINT_DELAY = 150  # seconds after spawn: second hint
-EXPIRE_TIMEOUT = 180     # seconds after spawn: unanswered round expires
-GUESS_COOLDOWN = 2.5     # seconds a user must wait between (non-winning) guesses
-HINT_PENALTY = 0.6       # reward multiplier per hint used (base * 0.6 ** hints)
-MIN_XP = 5
-MIN_SP = 1
+from bot.models.distro_store import (
+    DISTRO_DIR,
+    ENABLED_FILE,
+    METADATA_FILE,
+    STATS_FILE,
+    _guild_stats,
+    _load_json,
+    _load_metadata,
+    _save_guild_stats,
+    _save_json,
+    get_spawn_channel,
+    is_enabled,
+    set_enabled,
+    set_spawn_channel,
+)
+from bot.models.xp_store import load_user
+from bot.services.distro_game import (
+    EXPIRE_TIMEOUT,
+    FIRST_HINT_DELAY,
+    GUESS_COOLDOWN,
+    HINT_PENALTY,
+    IMAGE_EXTENSIONS,
+    MANAGED_FILES,
+    MIN_SP,
+    MIN_XP,
+    SECOND_HINT_DELAY,
+    TIER_COLORS,
+    TIER_REWARDS,
+    _AUTO_SPAWN_MAX,
+    _AUTO_SPAWN_MIN,
+    _accepted_answers,
+    _answer_variants,
+    _image_files,
+    _metadata_for,
+    _normalise_text,
+    _primary_name,
+    _tier_for,
+)
+from bot.services.leveling import award_game_xp
 
 DEFAULT_TIER = "medium"
-TIER_REWARDS = {
-    "easy": {"xp": 15, "sp": 3},
-    "medium": {"xp": 25, "sp": 5},
-    "hard": {"xp": 45, "sp": 10},
-}
-TIER_COLORS = {"easy": 0x2ECC71, "medium": 0xF1C40F, "hard": 0xE74C3C}
 
-_AUTO_SPAWN_MIN = 1200  # 20 minutes
-_AUTO_SPAWN_MAX = 2400  # 40 minutes
-
-
-def _load_json(path: pathlib.Path) -> dict:
-    try:
-        with open(path) as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
-def _save_json(path: pathlib.Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-# ── Feature toggle ─────────────────────────────────────────────────────────────
-def is_enabled(guild_id: int | None) -> bool:
-    if not guild_id:
-        return False
-    return guild_id in {int(g) for g in _load_json(ENABLED_FILE).get("guilds", [])}
-
-
-def set_enabled(guild_id: int, enabled: bool) -> None:
-    data = _load_json(ENABLED_FILE)
-    guilds = {int(g) for g in data.get("guilds", [])}
-    if enabled:
-        guilds.add(guild_id)
-    else:
-        guilds.discard(guild_id)
-    data["guilds"] = sorted(guilds)
-    _save_json(ENABLED_FILE, data)
-
-
-# ── Dedicated spawn channel ───────────────────────────────────────────────────
-def get_spawn_channel(guild_id: int | None) -> int | None:
-    """The configured text channel for auto-spawns in a guild, if any."""
-    if not guild_id:
-        return None
-    channels = _load_json(ENABLED_FILE).get("channels", {})
-    raw = channels.get(str(guild_id))
-    return int(raw) if raw is not None else None
-
-
-def set_spawn_channel(guild_id: int, channel_id: int | None) -> None:
-    """Pin (or clear) the dedicated spawn channel for a guild."""
-    data = _load_json(ENABLED_FILE)
-    channels = {str(k): v for k, v in data.get("channels", {}).items()}
-    if channel_id is None:
-        channels.pop(str(guild_id), None)
-    else:
-        channels[str(guild_id)] = channel_id
-    data["channels"] = channels
-    _save_json(ENABLED_FILE, data)
-
-
-# ── Stats ─────────────────────────────────────────────────────────────────────
-def _guild_stats(guild_id: int) -> dict:
-    data = _load_json(STATS_FILE)
-    return data.setdefault(str(guild_id), {"spawns": 0, "solved": 0, "users": {}})
-
-
-def _save_guild_stats(guild_id: int, stats: dict) -> None:
-    data = _load_json(STATS_FILE)
-    data[str(guild_id)] = stats
-    _save_json(STATS_FILE, data)
-
-
-# ── Image selection and answer matching ───────────────────────────────────────
-def _image_files() -> list[pathlib.Path]:
-    if not DISTRO_DIR.exists():
-        return []
-    return [
-        p for p in DISTRO_DIR.iterdir()
-        if p.is_file()
-        and p.suffix.lower() in IMAGE_EXTENSIONS
-        and p.name not in MANAGED_FILES
-    ]
-
-
-_SUFFIX_TOKENS = ("os", "linux")
-
-
-def _normalise_text(text: str) -> str:
-    """Normalise a guess: lowercase, no underscores/dashes, no punctuation,
-    no trailing file extension, collapsed whitespace."""
-    cleaned = text.lower().replace("_", " ").replace("-", " ")
-    cleaned = cleaned.strip(" .,!?;:\"'()[]")
-    for ext in IMAGE_EXTENSIONS:
-        if cleaned.endswith(ext):
-            cleaned = cleaned[: -len(ext)]
-            break
-    return " ".join(cleaned.split())
-
-
-def _primary_name(stem: str) -> str:
-    """The canonical answer for a filename stem: the cleaned filename itself."""
-    return " ".join(stem.split(".")[0].replace("_", " ").replace("-", " ").lower().split())
-
-
-def _answer_variants(stem: str) -> set[str]:
-    """Accepted answers for an image filename stem, e.g. `windows` ->
-    {"windows", "windows os", "windows linux", "windows os linux", ...}."""
-    base = _primary_name(stem)
-    if not base:
-        return set()
-    tokens = base.split()
-    bases = {base}
-    # Accept the bare name when the filename already ends in os/linux (e.g. arch-linux.png).
-    if tokens and tokens[-1] in _SUFFIX_TOKENS:
-        bases.add(" ".join(tokens[:-1]).rstrip())
-    # Accept any base with any combination of "os" / "linux" appended,
-    # plus concatenated spellings like "popos" or "nixos".
-    variants = set(bases)
-    for name in bases:
-        for combo in ("os", "linux", "os linux", "linux os"):
-            variants.add(f"{name} {combo}")
-        variants.add(f"{name}os")
-        variants.add(f"{name}linux")
-    return {v for v in variants if v}
-
-
-# ── Distro metadata (tiers + hints) ───────────────────────────────────────────
-def _load_metadata() -> dict:
-    """names.json: { "filename-stem": {"name", "tier", "hints", "aliases"} }."""
-    return _load_json(METADATA_FILE)
-
-
-def _metadata_for(stem: str) -> dict:
-    meta = _load_metadata()
-    key = _primary_name(stem)
-    entry = meta.get(key, {})
-    return entry if isinstance(entry, dict) else {}
-
-
-def _tier_for(stem: str) -> str:
-    tier = str(_metadata_for(stem).get("tier", DEFAULT_TIER)).lower()
-    return tier if tier in TIER_REWARDS else DEFAULT_TIER
-
-
-def _accepted_answers(stem: str) -> set[str]:
-    """Every accepted guess for an image stem: filename variants + metadata aliases."""
-    variants = _answer_variants(stem)
-    for alias in (_metadata_for(stem).get("aliases") or []):
-        normalised = _normalise_text(str(alias))
-        if normalised:
-            variants.add(normalised)
-    return variants
+__all__ = [
+    "DISTRO_DIR",
+    "ENABLED_FILE",
+    "EXPIRE_TIMEOUT",
+    "FIRST_HINT_DELAY",
+    "GUESS_COOLDOWN",
+    "HINT_PENALTY",
+    "METADATA_FILE",
+    "MIN_SP",
+    "MIN_XP",
+    "SECOND_HINT_DELAY",
+    "STATS_FILE",
+    "TIER_REWARDS",
+    "Distro",
+    "_accepted_answers",
+    "_answer_variants",
+    "_image_files",
+    "_load_metadata",
+    "_metadata_for",
+    "_normalise_text",
+    "_primary_name",
+    "_tier_for",
+    "get_spawn_channel",
+    "is_enabled",
+    "set_enabled",
+    "set_spawn_channel",
+]
 
 
 class Distro(commands.Cog, name="distro"):

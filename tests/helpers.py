@@ -292,12 +292,13 @@ def sent_embed(ctx) -> discord.Embed | None:
 # ── Storage isolation ─────────────────────────────────────────────────────────
 def isolate_storage(tmp_path: pathlib.Path) -> None:
     """Point every persistence path at *tmp_path* (used by the db_env fixture)."""
-    import cogs.distro as distro_mod
-    import cogs.giveaways as giveaways_mod
-    import cogs.linux as linux_mod
-    import cogs.shop as shop_mod
-    import cogs.spam as spam_mod
-    import cogs.xp as xp_mod
+    import bot.cogs.distro as distro_cog
+    import bot.cogs.giveaways as giveaways_mod
+    import bot.cogs.linux as linux_mod
+    import bot.cogs.shop as shop_mod
+    import bot.cogs.spam as spam_mod
+    import bot.models.distro_store as distro_mod
+    import bot.models.xp_store as xp_mod
 
     # SQLite-backed modules: close cached connections and point them at tmp.
     xp_mod.DATABASE_FILE = str(tmp_path / "xp.db")
@@ -325,6 +326,8 @@ def isolate_storage(tmp_path: pathlib.Path) -> None:
     distro_mod.METADATA_FILE = distro_mod.DISTRO_DIR / "names.json"
     distro_mod.ENABLED_FILE = tmp_path / "distro" / "enabled.json"
     distro_mod.STATS_FILE = tmp_path / "distro" / "stats.json"
+    # distro_game resolves paths through the store module, so re-patching the
+    # store above is enough for the game rules to follow the tmp paths too.
 
     linux_mod.MODE_FILE = tmp_path / "linux_mode.json"
     linux_mod.MODE_DIR = tmp_path

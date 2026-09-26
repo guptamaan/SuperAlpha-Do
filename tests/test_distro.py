@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import cogs.distro as distro_mod
-from cogs.distro import (
+import bot.cogs.distro as distro_mod
+from bot.cogs.distro import (
     EXPIRE_TIMEOUT,
     FIRST_HINT_DELAY,
     GUESS_COOLDOWN,

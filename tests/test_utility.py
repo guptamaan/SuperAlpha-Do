@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cogs.utility import Utility, _safe_eval_math_expression
+from bot.cogs.utility import Utility, _safe_eval_math_expression
 
 from helpers import make_ctx
 

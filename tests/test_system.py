@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from discord.ext import commands
 
-from cogs.system import INVITE_URL, OWNER_HANDLE, SUPPORT_SERVER, System
+from bot.cogs.system import INVITE_URL, OWNER_HANDLE, SUPPORT_SERVER, System
 
 from helpers import USER_IDS, make_ctx, make_guild, make_member
 

@@ -6,8 +6,8 @@ import json
 import os
 from unittest.mock import AsyncMock, MagicMock
 
-import cogs.xp as xp
-from cogs.shop import Shop
+import bot.cogs.xp as xp
+from bot.cogs.shop import Shop
 
 from helpers import (
     GUILD_ID,

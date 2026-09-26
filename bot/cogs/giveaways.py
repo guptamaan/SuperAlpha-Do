@@ -15,7 +15,7 @@ import time
 import discord
 from discord.ext import commands
 
-from cogs.checks import perms_or_developer
+from bot.cogs.checks import perms_or_developer
 
 DATA_DIR = "data/giveaways"
 DATA_FILE = os.path.join(DATA_DIR, "giveaways.json")
