@@ -9,22 +9,13 @@ class Database:
     def __init__(self):
         self.pool: asyncpg.Pool | None = None
 
-        self.HOST = os.getenv("HOST")
-        self.PORT = int(os.getenv("PORT"))
-        self.USER = os.getenv("USER")
-        self.PASS = os.getenv("PASS")
-        self.DATABASE = os.getenv("DB_NAME")
-
+        self.DB_URL = os.getenv("DB_URL")
     
     async def connect(self):
         self.pool = await asyncpg.create_pool(
-            host=self.HOST,
-            port=self.PORT,
-            user=self.USER,
-            password=self.PASS,
-            database=self.DATABASE,
+            dsn=self.DB_URL,
             min_size=1,
-            max_size=10,
+            max_size=10
         )
 
     async def close(self):
