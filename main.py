@@ -122,7 +122,7 @@ async def on_ready() -> None:
                 log.error("HTTP leave also failed: %s", e2)
 
     activity = discord.CustomActivity(
-    name="Changing code == Playing with fire"
+    name="Being built by Peikaw"
 )
 
     await bot.change_presence(
