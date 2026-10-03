@@ -25,7 +25,7 @@ SUPPORT_SERVER = os.getenv("SUPPORT_SERVER", "https://discord.gg/Z2NXkwkFK3")
 OWNER_HANDLE = os.getenv("OWNER_HANDLE", "@r4ve_x")
 
 # ── Command prefix ─────────────────────────────────────────────────────────────
-DEFAULT_PREFIXES: tuple[str, ...] = ("alpha ", "Alpha ")
+DEFAULT_PREFIXES: tuple[str, ...] = ("peikaw ", "Peikaw ")
 
 
 # ── Guild / user denylists ─────────────────────────────────────────────────────
