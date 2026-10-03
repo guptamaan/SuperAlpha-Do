@@ -7,3 +7,4 @@ pyfiglet
 psutil
 openai
 davey
+asyncpg

@@ -19,7 +19,7 @@ from bot.cogs.linux import apply_linux_aliases
 from bot.config.settings import BANNED_GUILDS, BANNED_USERS
 from bot.core.bot import get_prefix, make_bot
 from bot.services import ansi
-
+from bot.core.database import Database
 # ── Bootstrap ──────────────────────────────────────────────────────────────────
 load_dotenv()
 
@@ -121,11 +121,14 @@ async def on_ready() -> None:
             except Exception as e2:
                 log.error("HTTP leave also failed: %s", e2)
 
-    activity = discord.Activity(
-        type=discord.ActivityType.playing,
-        name="I love Arch Linux",
-    )
-    await bot.change_presence(status=discord.Status.idle, activity=activity)
+    activity = discord.CustomActivity(
+    name="Being built by Peikaw"
+)
+
+    await bot.change_presence(
+       status=discord.Status.online,
+       activity=activity
+)
     await bot.tree.sync()
     log.info("Synced slash commands")
     log.info("Logged in as %s (ID: %s)", bot.user, bot.user.id)
@@ -391,12 +394,23 @@ async def _suggest_command(ctx: commands.Context, invoked: str) -> None:
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
+
+db = Database()
+
 async def main() -> None:
     async with bot:
+        await db.connect()
+        bot.db = db
+        log.info("Connected to PostgreSQL database.")
+
         await load_cogs()
         attached = apply_linux_aliases(bot)
         log.info("Attached %d Linux aliases.", attached)
-        await bot.start(TOKEN)
+    
+        try:
+            await bot.start(TOKEN)
+        finally:
+            await db.close()
 
 
 if __name__ == "__main__":
