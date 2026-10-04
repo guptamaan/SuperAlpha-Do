@@ -3,8 +3,6 @@ cogs/afk.py — AFK system.
 Sets users as AFK with reason, notifies when pinged, welcomes back.
 """
 
-import asyncio
-import os
 import time
 
 import discord
@@ -84,19 +82,24 @@ class AFK(commands.Cog, name="afk"):
         if message.author.bot or not message.guild:
             return
 
-
-        ctx = await self.bot.get_context(message)
-        
-        if ctx.valid and ctx.command and ctx.command.qualified_name == "afk":
+        if message.id in self._ignored_messages:
+            self._ignored_messages.discard(message.id)
             return
 
         user_id = str(message.author.id)
 
         # Check if message author was AFK -> Remove AFK status
         if user_id in self.afk_cache:
-            afk_info = self.afk_cache.pop(user_id)
-            
-            await self.bot.db.execute("DELETE FROM afk.users WHERE user_id = $1;", user_id)
+            afk_info = self.afk_cache[user_id]
+            removed = False
+            try:
+                await self.bot.db.execute("DELETE FROM afk.users WHERE user_id = $1;", user_id)
+                removed = True
+            except Exception:
+                pass
+            if not removed:
+                return
+            self.afk_cache.pop(user_id, None)
 
             start_time = afk_info.get("timestamp", time.time())
             duration = time.time() - start_time
@@ -150,8 +153,16 @@ class AFK(commands.Cog, name="afk"):
             user_id = str(member.id)
 
             if user_id in self.afk_cache:
-                afk_info = self.afk_cache.pop(user_id)
-                await self.bot.db.execute("DELETE FROM afk.users WHERE user_id = $1;", user_id)
+                afk_info = self.afk_cache[user_id]
+                removed = False
+                try:
+                    await self.bot.db.execute("DELETE FROM afk.users WHERE user_id = $1;", user_id)
+                    removed = True
+                except Exception:
+                    pass
+                if not removed:
+                    return
+                self.afk_cache.pop(user_id, None)
 
                 start_time = afk_info.get("timestamp", time.time())
                 duration = time.time() - start_time
@@ -180,34 +191,33 @@ class AFK(commands.Cog, name="afk"):
             return
 
         now = time.time()
-    
-        self.afk_cache[user_id] = {
-            "name": ctx.author.display_name,
-            "reason": reason,
-            "timestamp": now,
-        }
-
 
         await self.bot.db.execute(
             """
             INSERT INTO afk.users (
-                user_id, 
-                name, 
-                reason, 
+                user_id,
+                name,
+                reason,
                 timestamp
             )
-    
+
             VALUES ($1, $2, $3, $4)
-            
-            ON CONFLICT (user_id) DO UPDATE 
+
+            ON CONFLICT (user_id) DO UPDATE
             SET name = EXCLUDED.name, reason = EXCLUDED.reason, timestamp = EXCLUDED.timestamp;
             """,
             user_id,
             ctx.author.display_name,
             reason,
-            now 
-    )
+            now,
+        )
 
+        self.afk_cache[user_id] = {
+            "name": ctx.author.display_name,
+            "reason": reason,
+            "timestamp": now,
+        }
+        self._ignored_messages.add(ctx.message.id)
 
         embed = discord.Embed(color=0xF39C12)
         embed.set_author(name="📴 AFK Set")
@@ -250,32 +260,31 @@ class AFK(commands.Cog, name="afk"):
 
         now = time.time()
 
-        self.afk_cache[user_id] = {
-            "name": interaction.user.display_name,
-            "reason": reason,
-            "timestamp": now,
-        }
-
-
         await self.bot.db.execute(
             """
             INSERT INTO afk.users (
-                user_id, 
-                name, 
-                reason, 
+                user_id,
+                name,
+                reason,
                 timestamp
             )
-            
+
             VALUES ($1, $2, $3, $4)
-            
-            ON CONFLICT (user_id) DO UPDATE 
+
+            ON CONFLICT (user_id) DO UPDATE
             SET name = EXCLUDED.name, reason = EXCLUDED.reason, timestamp = EXCLUDED.timestamp;
             """,
             user_id,
             interaction.user.display_name,
             reason,
-            now
+            now,
         )
+
+        self.afk_cache[user_id] = {
+            "name": interaction.user.display_name,
+            "reason": reason,
+            "timestamp": now,
+        }
 
         embed = discord.Embed(color=0xF39C12)
         embed.set_author(name="📴 AFK Set")

@@ -14,7 +14,9 @@ Support server - https://discord.gg/Z2NXkwkFK3
 - discord.py 2.7.x
 - python-dotenv
 - aiohttp
+- asyncpg
 - py-cord or compatible fork (if extending)
+- PostgreSQL server (connection string in `DB_URL`)
 - Groq API key (for AI commands) -- https://console.groq.com/keys
 - FFmpeg (for music playback)
 - Davey (for joining voice chats and playing music)
@@ -55,11 +57,14 @@ pip install -r requirements.txt
 ```
 DISCORD_TOKEN='your-bot-token-here'
 
+# Required -- PostgreSQL connection string (used by the AFK module and future Postgres cogs)
+DB_URL='postgresql://user:password@localhost:5432/databasename'
+
 # Optional -- required only for AI commands
 GROQ_API_KEY='your-groq-api-key-here'
 GROQ_MODEL='your-chosen-model'
 
-# Optional -- enables GitHub issue linking on the suggestion board
+# Optional -- enables GitHub issue/PR lookup and changelog fetches
 GITHUB_TOKEN='your-github-token-here'
 
 # Optional -- overrides for server links / branding (defaults apply if unset)
@@ -67,11 +72,6 @@ INVITE_URL='https://discord.com/oauth2/authorize?client_id=1545113823848038470&p
 SUPPORT_SERVER='https://GitHub.com/guptamaan/SuperAlpha-Do'
 OWNER_HANDLE='@r4ve_x'
 GIT_REPO='guptamaan/SuperAlpha-Do'
-``` 
-
-Or copy the ".env.example" file:
-```
-cp .env.example .env
 ```
 
 5. Start the bot:
@@ -85,15 +85,16 @@ python3 main.py
 | Key              | Required | Description                                      |
 |------------------|----------|--------------------------------------------------|
 | `DISCORD_TOKEN`  | Yes      | Discord bot token from the Developer Portal      |
+| `DB_URL`         | Yes      | PostgreSQL connection string (`postgresql://user:pass@host:port/db`) |
 | `GROQ_API_KEY`   | No       | API key for Groq-hosted LLM (AI commands)        |
 | `GROQ_MODEL`     | No       | Model identifier for Groq (e.g. `llama-3.3-70b-versatile`) |
-| `GITHUB_TOKEN`   | No       | GitHub token enabling issue linking on the suggestion board |
+| `GITHUB_TOKEN`   | No       | GitHub token enabling issue/PR lookup (`alpha issue`, `alpha pr`), changelog fetches, and auto-creating issues on the suggestion board |
 | `INVITE_URL`     | No       | Bot invite URL (overrides the built-in default)             |
 | `SUPPORT_SERVER` | No       | Support server invite link (overrides the built-in default) |
 | `OWNER_HANDLE`   | No       | Owner handle shown on the invite command (e.g. `@r4ve_x`)    |
 | `GIT_REPO`       | No       | Repo slug used by `alpha git`, e.g. `guptamaan/SuperAlpha-Do` |
 
-Per-guild configuration and per-user data are stored under the `data/` directory (gitignored). The bot creates subdirectories and SQLite databases as needed when commands are used.
+Per-guild configuration and per-user data are stored under the `data/` directory (gitignored). The bot creates subdirectories and SQLite databases as needed when commands are used. The AFK module stores its data in a PostgreSQL database (`afk.users`) via the `DB_URL` connection string, and more modules migrate to Postgres over time.
 
 ---
 
@@ -137,7 +138,7 @@ Once enabled, the corresponding commands and aliases become available to all use
 ## Modules
 
 ### System
-Ping, latency, uptime, server status, live health dashboard (htop), cog management, bot invite link, latest code pushes (`alpha git`), and a searchable manual (`alpha man <words>`).
+Ping, latency, uptime, server status, live health dashboard (htop), cog management, bot invite link, latest code pushes (`alpha git`), GitHub issue/PR lookup (`alpha issue` / `alpha pr`), and a searchable manual (`alpha man <words>`).
 
 ### Moderation
 Kick, ban, softban, mass ban, unban, mute/unmute, deafen, role management, message purge, warning system, slowmode.
@@ -146,22 +147,22 @@ Kick, ban, softban, mass ban, unban, mute/unmute, deafen, role management, messa
 Conversational AI via Groq, image generation, code generation, translation, summarization, conversation history.
 
 ### Music
-YouTube playback, queue management, shuffle, loop, volume control, replay, radio streams, autoplay.
+YouTube playback, queue management, shuffle, loop, volume control, seek, replay, radio streams, autoplay, audio effects (bass boost, nightcore, 8D, equalizer, slowed + reverb), lyrics lookup, favorites, and playlists.
 
 ### XP / Economy
-Per-user XP and SP (spendable points) system, level-up notifications, leaderboard, daily/work/bet commands, SP economy shop with custom roles.
+Per-user XP and SP (spendable points) system, level-up notifications with a configurable channel (`alpha levelchannel`), leaderboard (by XP, SP, messages, or voice), daily/work/bet commands, SP transfers (`alpha give`), owner XP adjustments (`alpha addxp`), and an SP economy shop with custom roles. Guilds can toggle the whole system with `alpha xpsystem`.
 
 ### Info
 User, server, role, channel, and bot information commands.
 
 ### Fun
-8-ball, coin flip, dice roll, trivia, jokes, ASCII art, mock text, reverse text, rock-paper-scissors, slots, would-you-rather, ship calculator.
+8-ball, coin flip, dice roll, trivia, jokes, inspirational quotes, ASCII art, mock text, reverse text, emojify, flip text, choose/pick, rock-paper-scissors, slots, would-you-rather, ship calculator, and playful interactions (hack, pat, kill).
 
 ### Games
 Tic-tac-toe, Connect 4, Word Bank (hangman-style word guessing).
 
 ### Utility
-Polls, reminders, calculator, random number generator, wiki lookup, base64, hash, timestamps, weather, urban dictionary, dictionary, URL shortener, translation.
+Polls, reminders, calculator, random number generator, wiki lookup, base64, hash, timestamps, weather, urban dictionary, dictionary, URL shortener, translation, and chat helpers (`say`, announcements with `announce`, custom embeds with `embed`).
 
 ### Music Games
 Guess-the-song challenge.
@@ -201,7 +202,7 @@ Self-assignable roles via reaction messages.
 On-demand voice channel creation.
 
 ### AFK
-AFK status tracking with mentions-on-return notifications.
+AFK status tracking with mentions-on-return notifications, stored in the PostgreSQL database. List everyone away with `alpha afklist` (alias `alpha whosafk`).
 
 ### Spectrum
 Color spectrum commands.
