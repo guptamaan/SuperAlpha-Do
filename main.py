@@ -121,14 +121,12 @@ async def on_ready() -> None:
             except Exception as e2:
                 log.error("HTTP leave also failed: %s", e2)
 
-    activity = discord.CustomActivity(
-    name="I Love Arch Linux"
-)
 
     await bot.change_presence(
-       status=discord.Status.idle,
-       activity=activity
-)
+        status=discord.Status.idle,
+        activity=discord.CustomActivity(name="I Love Arch Linux")
+    )
+    
     await bot.tree.sync()
     log.info("Synced slash commands")
     log.info("Logged in as %s (ID: %s)", bot.user, bot.user.id)

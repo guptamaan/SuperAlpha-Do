@@ -12,6 +12,7 @@ from discord import app_commands
 from discord.ext import commands
 
 
+
 async def load_afk(bot: commands.Bot) -> dict:
     """Load all AFK users from PostgreSQL into an in-memory dictionary."""
     rows = await bot.db.fetch("SELECT user_id, name, reason, timestamp FROM afk.users;")
@@ -50,6 +51,7 @@ class AFK(commands.Cog, name="afk"):
         self.bot = bot
         self._ignored_messages: set[int] = set()
         self.afk_cache: dict[str, dict] = {}
+
 
     async def setup_schema(self) -> None:
         """Create afk schema and users table inside PostgreSQL."""
