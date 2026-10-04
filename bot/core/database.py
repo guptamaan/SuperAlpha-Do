@@ -18,7 +18,6 @@ class Database:
             max_size=10
         )
 
-
     async def close(self):
         if self.pool:
             await self.pool.close()

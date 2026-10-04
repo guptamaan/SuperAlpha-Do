@@ -121,12 +121,14 @@ async def on_ready() -> None:
             except Exception as e2:
                 log.error("HTTP leave also failed: %s", e2)
 
-    activity = discord.CustomActivity(
-    name="Being built by Peikaw"
+
+    await bot.change_presence(
+        status=discord.Status.online,
+        name="I Love Arch Linux"
 )
 
     await bot.change_presence(
-       status=discord.Status.online,
+       status=discord.Status.idle,
        activity=activity
 )
     await bot.tree.sync()
