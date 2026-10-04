@@ -122,11 +122,11 @@ async def on_ready() -> None:
                 log.error("HTTP leave also failed: %s", e2)
 
     activity = discord.CustomActivity(
-    name="Being built by Peikaw"
+    name="I Love Arch Linux"
 )
 
     await bot.change_presence(
-       status=discord.Status.online,
+       status=discord.Status.idle,
        activity=activity
 )
     await bot.tree.sync()
