@@ -74,10 +74,10 @@ OWNER_HANDLE='@r4ve_x'
 GIT_REPO='guptamaan/SuperAlpha-Do'
 
 # Optional -- bot owner / super users (comma or space separated Discord IDs)
-SUPER_USERS='1224391248580972584'
+SUPER_USERS='1234567890'
 
 # Optional -- servers the bot refuses to join (comma or space separated IDs)
-BANNED_GUILDS='1523771297090507005,1446772086231138375'
+BANNED_GUILDS='1234567890,1234567890'
 ```
 
 5. Start the bot:
