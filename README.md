@@ -72,6 +72,12 @@ INVITE_URL='https://discord.com/oauth2/authorize?client_id=1545113823848038470&p
 SUPPORT_SERVER='https://GitHub.com/guptamaan/SuperAlpha-Do'
 OWNER_HANDLE='@r4ve_x'
 GIT_REPO='guptamaan/SuperAlpha-Do'
+
+# Optional -- bot owner / super users (comma or space separated Discord IDs)
+SUPER_USERS='1224391248580972584'
+
+# Optional -- servers the bot refuses to join (comma or space separated IDs)
+BANNED_GUILDS='1523771297090507005,1446772086231138375'
 ```
 
 5. Start the bot:
@@ -93,6 +99,8 @@ python3 main.py
 | `SUPPORT_SERVER` | No       | Support server invite link (overrides the built-in default) |
 | `OWNER_HANDLE`   | No       | Owner handle shown on the invite command (e.g. `@r4ve_x`)    |
 | `GIT_REPO`       | No       | Repo slug used by `alpha git`, e.g. `guptamaan/SuperAlpha-Do` |
+| `SUPER_USERS`    | No       | Bot owner / super-user Discord IDs (comma or space separated) — these users count as bot owner for owner-only commands |
+| `BANNED_GUILDS`  | No       | Discord server IDs the bot refuses to join (comma or space separated) |
 
 Per-guild configuration and per-user data are stored under the `data/` directory (gitignored). The bot creates subdirectories and SQLite databases as needed when commands are used. The AFK module stores its data in a PostgreSQL database (`afk.users`) via the `DB_URL` connection string, and more modules migrate to Postgres over time.
 
@@ -203,9 +211,6 @@ On-demand voice channel creation.
 
 ### AFK
 AFK status tracking with mentions-on-return notifications, stored in the PostgreSQL database. List everyone away with `alpha afklist` (alias `alpha whosafk`).
-
-### Spectrum
-Color spectrum commands.
 
 ### Journal
 Server-wide activity journal with a `journalctl` interface, plus per-user bash-style command history: `history`/`hist`, `!!` (re-run last), and `!<line>` / `!<keyword>` re-runs.

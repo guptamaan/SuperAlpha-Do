@@ -16,7 +16,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Identity ───────────────────────────────────────────────────────────────────
-SUPER_USERS: set[int] = {1224391248580972584}
+def _parse_snowflakes(value: str | None) -> set[int]:
+    """Parse a comma/space-separated list of Discord snowflake IDs."""
+    if not value:
+        return set()
+    ids: set[int] = set()
+    for part in value.replace(",", " ").split():
+        if part.strip():
+            ids.add(int(part.strip()))
+    return ids
+
+
+SUPER_USERS: set[int] = _parse_snowflakes(os.getenv("SUPER_USERS")) or {1224391248580972584}
 INVITE_URL = os.getenv(
     "INVITE_URL",
     "https://discord.com/oauth2/authorize?client_id=1545113823848038470&permissions=8&integration_type=0&scope=bot",
@@ -29,8 +40,11 @@ DEFAULT_PREFIXES: tuple[str, ...] = ("alpha ", "Alpha ")
 
 
 # ── Guild / user denylists ─────────────────────────────────────────────────────
-BANNED_GUILDS: set[int] = {1523771297090507005, 1446772086231138375}
-BANNED_USERS: set[int] = set()
+BANNED_GUILDS: set[int] = _parse_snowflakes(os.getenv("BANNED_GUILDS")) or {
+    1523771297090507005,
+    1446772086231138375,
+}
+BANNED_USERS: set[int] = _parse_snowflakes(os.getenv("BANNED_USERS"))
 
 
 def build_intents() -> discord.Intents:

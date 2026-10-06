@@ -60,7 +60,6 @@ COG_FILTERS: dict[str, set[str]] = {
     "welcome": {"welcomelogs"},
     "reaction": {"reactionroles"},
     "clan": {"clans"},
-    "spectrum": {"spectrum"},
 }
 
 ALL_FILTERS = set(COG_FILTERS) | {"all"}

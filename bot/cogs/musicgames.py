@@ -18,7 +18,6 @@ import unicodedata
 import discord
 from discord.ext import commands
 
-from bot.cogs.music import build_filter_string, get_ffmpeg_opts
 from bot.models.xp_store import is_xp_enabled
 from bot.services.leveling import award_game_xp
 
@@ -185,13 +184,10 @@ class MusicGames(commands.Cog, name="musicgames"):
                 "Type the song name in this chat to guess!",
             )
             try:
-                preview = discord.FFmpegPCMAudio(
+                preview = music._make_audio_source(
                     track.stream_url,
-                    before_options=(
-                        "-reconnect 1 -reconnect_streamed 1 "
-                        "-reconnect_delay_max 5 -thread_queue_size 8192"
-                    ),
-                    options=f"-vn -t {PREVIEW_SECONDS} -bufsize 384k -maxrate 256k",
+                    music_player,
+                    duration=PREVIEW_SECONDS,
                 )
                 vc.play(preview, after=lambda e: None)
             except Exception as e:
@@ -322,36 +318,38 @@ class MusicGames(commands.Cog, name="musicgames"):
                     if vc.is_playing():
                         vc.stop()
                     await asyncio.sleep(0.3)
-                    filter_str = build_filter_string(player)
-                    source = discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(
-                            saved_current.stream_url, **get_ffmpeg_opts(filter_str)
-                        ),
-                        volume=player.volume,
-                    )
+                    if await music._refresh_stream_url(saved_current):
+                        source = music._make_audio_source(saved_current.stream_url, player)
 
-                    def resume_after(error: Exception | None) -> None:
-                        if error:
-                            print(f"Resume playback error: {error}")
-                        try:
-                            asyncio.run_coroutine_threadsafe(
-                                music._play_next(guild_id), self.bot.loop
-                            )
-                        except Exception:
-                            pass
+                        def resume_after(error: Exception | None) -> None:
+                            if error:
+                                print(f"Resume playback error: {error}")
+                            try:
+                                asyncio.run_coroutine_threadsafe(
+                                    music._play_next(guild_id), self.bot.loop
+                                )
+                            except Exception:
+                                pass
 
-                    player.current = saved_current
-                    player._start_time = (
-                        asyncio.get_event_loop().time()
-                        if asyncio.get_event_loop().is_running() else 0
-                    )
-                    vc.play(source, after=resume_after)
-                    await music._update_presence(saved_current, ctx.guild)
-                    await music._maybe_start_spectrum(guild_id, ctx.guild)
-                    await ctx.send(embed=self._make_embed(
-                        "▶️ Resumed", 0x3498DB,
-                        "Resumed your music queue after the game.",
-                    ))
+                        player.current = saved_current
+                        player._start_time = (
+                            asyncio.get_event_loop().time()
+                            if asyncio.get_event_loop().is_running() else 0
+                        )
+                        vc.play(source, after=resume_after)
+                        if saved_paused:
+                            vc.pause()
+                        await music._update_presence(saved_current, ctx.guild)
+                        await ctx.send(embed=self._make_embed(
+                            "▶️ Resumed", 0x3498DB,
+                            "Resumed your music queue after the game.",
+                        ))
+                    else:
+                        await ctx.send(embed=self._make_embed(
+                            "❌ Resume Failed",
+                            0xE74C3C,
+                            "Could not refresh the previous track after the game.",
+                        ))
                 elif not saved_current and vc:
                     try:
                         await music._update_presence(None, ctx.guild)

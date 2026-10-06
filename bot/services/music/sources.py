@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import base64
-import functools
 import json
+import multiprocessing as mp
 import os
 import re
 import time
+from concurrent.futures import ProcessPoolExecutor
 from urllib.parse import parse_qs, urlsplit
 import aiohttp
 import yt_dlp
@@ -30,6 +32,37 @@ BASE_YTDL_OPTS = {
     },
     "js_runtimes": {"node": {"cmd": ["node"]}},
 }
+
+# Dedicated process pool so heavy yt-dlp work stays off the event-loop thread pool.
+_ytdl_pool: ProcessPoolExecutor | None = None
+_YTDL_POOL_WORKERS = 2
+
+
+def _get_ytdl_pool() -> ProcessPoolExecutor:
+    global _ytdl_pool
+    if _ytdl_pool is None:
+        _ytdl_pool = ProcessPoolExecutor(
+            max_workers=_YTDL_POOL_WORKERS,
+            mp_context=mp.get_context("spawn"),
+        )
+    return _ytdl_pool
+
+
+def shutdown_ytdl_pool() -> None:
+    """Shut down the shared yt-dlp process pool (idempotent)."""
+    global _ytdl_pool
+    if _ytdl_pool is not None:
+        _ytdl_pool.shutdown(wait=False, cancel_futures=True)
+        _ytdl_pool = None
+
+
+atexit.register(shutdown_ytdl_pool)
+
+
+def _ytdl_extract(query: str, opts: dict) -> dict | None:
+    """Picklable worker: run yt-dlp extract_info in a child process."""
+    with yt_dlp.YoutubeDL(opts) as ytdl:
+        return ytdl.extract_info(query, download=False)
 
 
 def get_ytdl_opts() -> dict:
@@ -358,20 +391,36 @@ def classify_ytdl_error(error: Exception) -> str:
     return f"Could not fetch that track: `{msg[:200]}`"
 
 
-async def extract_info(query: str, *, skip_download: bool = False) -> dict | None:
-    """Run yt-dlp in an executor and return the extracted info dict."""
+async def extract_info(
+    query: str,
+    *,
+    skip_download: bool = False,
+    flat: bool = False,
+) -> dict | None:
+    """Run yt-dlp in a process pool and return the extracted info dict.
+
+    Use ``flat=True`` (``extract_flat``) for playlist/search listings where
+    stream URLs are not needed yet — e.g. radio mode and related-track search.
+    Full extraction (``flat=False``) is required when a playable stream URL
+    is needed.
+    """
     loop = asyncio.get_running_loop()
     if skip_download:
         opts = {
             "quiet": True,
             "skip_download": True,
-            "extract_flat": False,
+            "extract_flat": "in_playlist" if flat else False,
+            "noplaylist": not flat,
         }
     else:
         opts = get_ytdl_opts()
-    ytdl = yt_dlp.YoutubeDL(opts)
+        if flat:
+            opts["extract_flat"] = "in_playlist"
+            opts["noplaylist"] = False
     return await loop.run_in_executor(
-        None,
-        functools.partial(ytdl.extract_info, query, download=False),
+        _get_ytdl_pool(),
+        _ytdl_extract,
+        query,
+        opts,
     )
 

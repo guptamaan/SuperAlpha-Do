@@ -452,16 +452,16 @@ def _queued_player(cog, guild, member, count: int):
 async def test_failed_status_update_does_not_clear_the_queue(bot, monkeypatch):
     """A cosmetic failure must never destroy the queue.
 
-    The now-playing send, presence update and spectrum start used to share one
+    The now-playing send and presence update used to share one
     try/except that cleared the queue, so a blocked channel or a failed presence
     update silently wiped everything.
     """
     import discord as discord_mod
 
-    monkeypatch.setattr(discord_mod, "FFmpegPCMAudio", MagicMock())
-    monkeypatch.setattr(discord_mod, "PCMVolumeTransformer", MagicMock())
+    monkeypatch.setattr(discord_mod, "FFmpegOpusAudio", MagicMock())
 
     cog = Music(bot)
+    monkeypatch.setattr(cog, "_refresh_stream_url", AsyncMock())
     member = make_member(USER_IDS["member"])
     guild = make_guild()
     bot.get_guild = MagicMock(return_value=guild)
@@ -472,7 +472,6 @@ async def test_failed_status_update_does_not_clear_the_queue(bot, monkeypatch):
         raise RuntimeError("Missing Permissions")
 
     monkeypatch.setattr(cog, "_update_presence", boom)
-    monkeypatch.setattr(cog, "_maybe_start_spectrum", boom)
     player.text_channel = MagicMock(spec=discord.VoiceChannel)
     player.text_channel.send = AsyncMock(side_effect=boom)
 
@@ -486,10 +485,10 @@ async def test_failed_status_update_does_not_clear_the_queue(bot, monkeypatch):
 async def test_failed_presence_alone_keeps_the_queue(bot, monkeypatch):
     import discord as discord_mod
 
-    monkeypatch.setattr(discord_mod, "FFmpegPCMAudio", MagicMock())
-    monkeypatch.setattr(discord_mod, "PCMVolumeTransformer", MagicMock())
+    monkeypatch.setattr(discord_mod, "FFmpegOpusAudio", MagicMock())
 
     cog = Music(bot)
+    monkeypatch.setattr(cog, "_refresh_stream_url", AsyncMock())
     member = make_member(USER_IDS["member"])
     guild = make_guild()
     bot.get_guild = MagicMock(return_value=guild)

@@ -186,8 +186,6 @@ LINUX_ALIASES: dict[str, tuple[str, ...]] = {
     "guessthesong": ("shazam",),
     # Reaction roles
     "reactionrole": ("rr",),
-    # Spectrum
-    "spectrum": ("showeq",),
     # System
     "invite": ("oauth",),
     "journalctl": ("journal",),

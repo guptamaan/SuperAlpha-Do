@@ -55,7 +55,6 @@ COGS = [
     "bot.cogs.welcomelogs",
     "bot.cogs.reaction_roles",
     "bot.cogs.clan_system",
-    "bot.cogs.spectrum",
     "bot.cogs.journal",
     "bot.cogs.linux",
     "bot.cogs.automod",

@@ -31,11 +31,33 @@ def build_filter_string(player) -> str:
     return ",".join(filters) if filters else ""
 
 
-def get_ffmpeg_opts(filter_str: str = "") -> dict:
-    before = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -thread_queue_size 8192"
-    options = "-vn -bufsize 384k -maxrate 256k"
+def get_ffmpeg_opts(
+    filter_str: str = "",
+    volume: float = 1.0,
+    *,
+    duration: float | None = None,
+) -> dict:
+    """Build FFmpeg options for ``discord.FFmpegOpusAudio``.
+
+    Volume is applied in the FFmpeg filter graph (``volume=X``) so callers
+    do not need ``PCMVolumeTransformer``. ``-threads 1`` caps per-stream
+    FFmpeg thread spawn.
+    """
+    before = (
+        "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+        "-thread_queue_size 8192"
+    )
+    options = "-vn -bufsize 384k -maxrate 256k -threads 1"
+
+    filters: list[str] = []
     if filter_str:
-        options += f' -af "{filter_str}"'
+        filters.append(filter_str)
+    filters.append(f"volume={volume}")
+    options += f' -af "{",".join(filters)}"'
+
+    if duration is not None:
+        options += f" -t {duration}"
+
     return {
         "before_options": before,
         "options": options,

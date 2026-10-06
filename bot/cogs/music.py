@@ -13,7 +13,6 @@ FFmpeg must be installed on the system:
 """
 
 import asyncio
-import functools
 import math
 import os
 import random
@@ -21,7 +20,6 @@ import traceback
 from collections import deque
 
 import discord
-import yt_dlp
 from discord import app_commands
 from discord.abc import Messageable
 from discord.ext import commands
@@ -41,6 +39,7 @@ from bot.services.music import (
     fetch_apple_metadata,
     fetch_spotify_metadata,
     build_filter_string,
+    shutdown_ytdl_pool,
     youtube_search_query,
 )
 from bot.services.music.models import GuildPlayer, Track
@@ -236,6 +235,66 @@ class Music(commands.Cog, name="music"):
 
         return Track(data, requester)
 
+    @staticmethod
+    def _make_audio_source(
+        stream_url: str,
+        player: GuildPlayer,
+        *,
+        seek: float | None = None,
+        duration: float | None = None,
+    ) -> discord.FFmpegOpusAudio:
+        """Build an Opus source with effects + volume baked into FFmpeg ``-af``."""
+        filter_str = build_filter_string(player)
+        opts = get_ffmpeg_opts(filter_str, volume=player.volume, duration=duration)
+        if seek is not None and seek > 0:
+            opts["before_options"] = f"{opts['before_options']} -ss {seek}"
+        return discord.FFmpegOpusAudio(stream_url, **opts)
+
+    @staticmethod
+    def _swap_audio_source(voice_client: discord.VoiceClient, source: discord.AudioSource) -> None:
+        """Replace the current source without orphaning the AudioPlayer.
+
+        ``pause()`` then ``play()`` leaves the old player thread + FFmpeg process
+        alive forever. Assigning ``voice_client.source`` keeps the same player
+        and ``after`` callback; we explicitly clean up the previous source.
+        """
+        old = voice_client.source
+        voice_client.source = source
+        if old is not None and old is not source:
+            try:
+                old.cleanup()
+            except Exception:
+                pass
+
+    async def _refresh_stream_url(self, track: Track) -> bool:
+        """Re-extract a fresh stream URL for *track*. Returns True on success."""
+        previous = track.stream_url or ""
+        try:
+            data = await extract_info(track.url or youtube_search_query(track.title))
+            if data:
+                if "entries" in data and data["entries"]:
+                    data = data["entries"][0]
+                new_url = data.get("url", "")
+                if new_url:
+                    track.stream_url = new_url
+                    return True
+        except Exception:
+            pass
+        # Flat listings leave a watch/page URL in ``stream_url`` — not playable.
+        if not previous.startswith("http"):
+            return False
+        low = previous.lower()
+        if any(
+            marker in low
+            for marker in (
+                "youtube.com/watch",
+                "youtu.be/",
+                "soundcloud.com/",
+                "ytsearch",
+            )
+        ):
+            return False
+        return True
 
     def _schedule_play_next(self, guild_id: int) -> None:
         """Schedule _play_next on the bot loop and surface any errors."""
@@ -281,31 +340,19 @@ class Music(commands.Cog, name="music"):
             player.queue.append(player.current)
         if player.queue:
             player.current = player.queue.popleft()
-            loop = asyncio.get_running_loop()
-            ydl_opts = get_ytdl_opts()
-            try:
-                ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
-                data = await loop.run_in_executor(
-                    None,
-                    functools.partial(
-                        ytdl_instance.extract_info,
-                        player.current.url or f"ytsearch1:{player.current.title}",
-                        download=False,
+            if not await self._refresh_stream_url(player.current):
+                await self._notify(
+                    player,
+                    self._make_embed(
+                        "❌ Stream Expired",
+                        0xE74C3C,
+                        f"Could not refresh **{player.current.title}** — skipping.",
                     ),
                 )
-                if data:
-                    if "entries" in data and data["entries"]:
-                        data = data["entries"][0]
-                    new_url = data.get("url", "")
-                    if new_url:
-                        player.current.stream_url = new_url
-            except Exception:
-                pass
-            filter_str = build_filter_string(player)
-            source = discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio(player.current.stream_url, **get_ffmpeg_opts(filter_str)),
-                volume=player.volume,
-            )
+                player.current = None
+                await self._play_next(guild_id)
+                return
+            source = self._make_audio_source(player.current.stream_url, player)
             guild = self.bot.get_guild(guild_id)
             voice_client = guild and guild.voice_client
             if not voice_client:
@@ -340,24 +387,16 @@ class Music(commands.Cog, name="music"):
                 await self._update_presence(player.current, guild)
             except Exception as e:
                 print(f"Presence update failed in guild {guild_id}: {e}")
-            try:
-                await self._maybe_start_spectrum(guild_id, guild)
-            except Exception as e:
-                print(f"Spectrum failed to start in guild {guild_id}: {e}")
             await self._notify(
                 player, self._build_now_playing_embed(player.current, player)
             )
         else:
             if player.autoplay and player.last_track:
-                loop = asyncio.get_running_loop()
                 try:
-                    related_query = f"ytsearch1:{player.last_track.title} similar"
-                    ydl_opts = get_ytdl_opts()
-                    ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
-                    data = await loop.run_in_executor(
-                        None,
-                        functools.partial(ytdl_instance.extract_info, related_query, download=False),
+                    related_query = youtube_search_query(
+                        f"{player.last_track.title} similar"
                     )
+                    data = await extract_info(related_query, flat=True)
                     if data and "entries" in data and data["entries"]:
                         entry = data["entries"][0]
                         if entry:
@@ -447,32 +486,9 @@ class Music(commands.Cog, name="music"):
         self._reset_player_settings(player)
         vc = ctx.voice_client
         await self._update_presence(None, ctx.guild)
-        await self._maybe_stop_spectrum(ctx.guild.id)
         await vc.disconnect()
         embed = self._make_embed("Disconnected", 0x3498DB, "Left the voice channel.")
         await ctx.send(embed=embed)
-
-    async def _maybe_start_spectrum(self, guild_id: int, guild: discord.Guild) -> None:
-        """Start spectrum visualizer if the cog is loaded and enabled."""
-        try:
-            spectrum_cog = self.bot.get_cog("spectrum")
-            if spectrum_cog and spectrum_cog._spectrum_enabled.get(guild_id, False):
-                viz = spectrum_cog._get_visualizer(guild_id)
-                if not viz.is_active:
-                    await viz.start(self.bot, guild_id)
-        except Exception:
-            pass
-
-    async def _maybe_stop_spectrum(self, guild_id: int) -> None:
-        """Stop spectrum visualizer."""
-        try:
-            spectrum_cog = self.bot.get_cog("spectrum")
-            if spectrum_cog:
-                viz = spectrum_cog._get_visualizer(guild_id)
-                if viz.is_active:
-                    await viz.stop()
-        except Exception:
-            pass
 
     def _reset_player_settings(self, player: GuildPlayer) -> None:
         """Reset all player settings to default."""
@@ -518,11 +534,16 @@ class Music(commands.Cog, name="music"):
 
         player.current = player.last_track
         player.last_track = None
-        filter_str = build_filter_string(player)
-        source = discord.PCMVolumeTransformer(
-            discord.FFmpegPCMAudio(player.current.stream_url, **get_ffmpeg_opts(filter_str)),
-            volume=player.volume,
-        )
+        if not await self._refresh_stream_url(player.current):
+            embed = self._make_embed(
+                "❌ Stream Expired",
+                0xE74C3C,
+                f"Could not refresh **{player.current.title}**. Try playing it again.",
+            )
+            player.current = None
+            await ctx.send(embed=embed)
+            return
+        source = self._make_audio_source(player.current.stream_url, player)
 
         def after_callback(error: Exception | None) -> None:
             if error:
@@ -530,6 +551,7 @@ class Music(commands.Cog, name="music"):
                 traceback.print_exception(type(error), error, error.__traceback__)
             self._schedule_play_next(ctx.guild.id)
 
+        player._start_time = asyncio.get_running_loop().time()
         ctx.voice_client.play(source, after=after_callback)
         await self._update_presence(player.current, ctx.guild)
         self._remember_text_channel(player, ctx)
@@ -618,11 +640,7 @@ class Music(commands.Cog, name="music"):
             return
 
         player.current = track
-        filter_str = build_filter_string(player)
-        source = discord.PCMVolumeTransformer(
-            discord.FFmpegPCMAudio(track.stream_url, **get_ffmpeg_opts(filter_str)),
-            volume=player.volume,
-        )
+        source = self._make_audio_source(track.stream_url, player)
 
         def after_callback(error: Exception | None) -> None:
             if error:
@@ -633,7 +651,6 @@ class Music(commands.Cog, name="music"):
         player._start_time = asyncio.get_running_loop().time()
         ctx.voice_client.play(source, after=after_callback)
         await self._update_presence(track, ctx.guild)
-        await self._maybe_start_spectrum(ctx.guild.id, ctx.guild)
         await ctx.send(embed=self._build_now_playing_embed(track, player))
 
     # ── pause ─────────────────────────────────────────────────────────────────
@@ -765,38 +782,16 @@ class Music(commands.Cog, name="music"):
             await ctx.send(embed=embed)
 
     async def _fade_out_and_skip(self, guild_id: int) -> None:
-        """Fade out volume over 5 seconds then skip."""
-        player = self._get_player(guild_id)
+        """Stop the current track so the queue advances to the next one.
+
+        Volume fades used to mutate ``PCMVolumeTransformer.volume`` frame-by-
+        frame; with Opus the volume lives in the FFmpeg graph, so we just stop.
+        """
         guild = self.bot.get_guild(guild_id)
         if not guild or not guild.voice_client:
             return
-        
-        voice_client = guild.voice_client
-        if not voice_client:
-            return
-        if not voice_client.source:
-            try:
-                voice_client.stop()
-            except Exception:
-                pass
-            return
-
-        original_volume = player.volume
-        steps = 10
-        fade_delay = 0.5
-        volume_step = original_volume / steps
-
-        for i in range(steps):
-            await asyncio.sleep(fade_delay)
-            try:
-                if voice_client and voice_client.source:
-                    new_vol = max(0, original_volume - (volume_step * (i + 1)))
-                    voice_client.source.volume = new_vol
-            except Exception:
-                pass
-
         try:
-            voice_client.stop()
+            guild.voice_client.stop()
         except Exception:
             pass
 
@@ -868,8 +863,22 @@ class Music(commands.Cog, name="music"):
             return
         player = self._get_player(ctx.guild.id)
         player.volume = level / 100
-        if ctx.voice_client and ctx.voice_client.source:
-            ctx.voice_client.source.volume = player.volume
+
+        # Opus volume is baked into the FFmpeg filter graph — swap the source
+        # from the current position so the new level applies immediately.
+        vc = ctx.voice_client
+        if vc and player.current and (vc.is_playing() or vc.is_paused()):
+            loop = asyncio.get_running_loop()
+            elapsed = max(0.0, loop.time() - player._start_time) if player._start_time else 0.0
+            try:
+                source = self._make_audio_source(
+                    player.current.stream_url, player, seek=elapsed
+                )
+                self._swap_audio_source(vc, source)
+                player._start_time = loop.time() - elapsed
+            except Exception as e:
+                print(f"Volume restart failed: {e}")
+
         embed = self._make_embed(
             "Volume Changed", 0x2ECC71, f"{EMOJI_MUSIC_VOL} Volume set to **{level}%**"
         )
@@ -995,18 +1004,12 @@ class Music(commands.Cog, name="music"):
         ]
 
         tracks_found = []
-        loop = asyncio.get_running_loop()
-        ydl_opts = get_ytdl_opts()
-        ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
 
         for query in search_queries:
             if len(tracks_found) >= 10:
                 break
             try:
-                data = await loop.run_in_executor(
-                    None,
-                    functools.partial(ytdl_instance.extract_info, query, download=False),
-                )
+                data = await extract_info(query, flat=True)
                 if data and "entries" in data:
                     for entry in data["entries"]:
                         if entry and entry not in tracks_found:
@@ -1023,8 +1026,12 @@ class Music(commands.Cog, name="music"):
         unique_tracks = []
         seen_urls = set()
         for track_data in tracks_found:
-            if track_data and track_data.get("url") not in seen_urls:
-                seen_urls.add(track_data["url"])
+            if not track_data:
+                continue
+            # Flat extraction exposes the watch URL as ``url`` / ``webpage_url``.
+            key = track_data.get("webpage_url") or track_data.get("url") or track_data.get("id")
+            if key and key not in seen_urls:
+                seen_urls.add(key)
                 unique_tracks.append(Track(track_data, ctx.author))
 
         random.shuffle(unique_tracks)
@@ -1042,11 +1049,17 @@ class Music(commands.Cog, name="music"):
         else:
             if player.queue:
                 player.current = player.queue.popleft()
-                filter_str = build_filter_string(player)
-                source = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(player.current.stream_url, **get_ffmpeg_opts(filter_str)),
-                    volume=player.volume,
-                )
+                if not await self._refresh_stream_url(player.current):
+                    # Put remaining queue tracks back into play_next path.
+                    await loading_msg.edit(embed=self._make_embed(
+                        "❌ Stream Expired",
+                        0xE74C3C,
+                        f"Could not start **{player.current.title}** — trying the next track.",
+                    ))
+                    player.current = None
+                    await self._play_next(ctx.guild.id)
+                    return
+                source = self._make_audio_source(player.current.stream_url, player)
 
                 def after_callback(error: Exception | None) -> None:
                     if error:
@@ -1054,6 +1067,7 @@ class Music(commands.Cog, name="music"):
                         traceback.print_exception(type(error), error, error.__traceback__)
                     self._schedule_play_next(ctx.guild.id)
 
+                player._start_time = asyncio.get_running_loop().time()
                 ctx.voice_client.play(source, after=after_callback)
                 await self._update_presence(player.current, ctx.guild)
 
@@ -1113,22 +1127,19 @@ class Music(commands.Cog, name="music"):
             await ctx.send(embed=embed)
             return
 
-        ctx.voice_client.pause()
-        filter_str = build_filter_string(player)
-        opts = get_ffmpeg_opts(filter_str)
-        opts["before_options"] = f"{opts['before_options']} -ss {secs}"
-        source = discord.PCMVolumeTransformer(
-            discord.FFmpegPCMAudio(player.current.stream_url, **opts),
-            volume=player.volume,
-        )
+        source = self._make_audio_source(player.current.stream_url, player, seek=secs)
+        try:
+            self._swap_audio_source(ctx.voice_client, source)
+        except Exception:
+            # No active player (e.g. paused edge cases) — start a fresh one.
+            def after_callback(error: Exception | None) -> None:
+                if error:
+                    print(f"Playback error: {error}")
+                    traceback.print_exception(type(error), error, error.__traceback__)
+                self._schedule_play_next(ctx.guild.id)
 
-        def after_callback(error: Exception | None) -> None:
-            if error:
-                print(f"Playback error: {error}")
-                traceback.print_exception(type(error), error, error.__traceback__)
-            self._schedule_play_next(ctx.guild.id)
-
-        ctx.voice_client.play(source, after=after_callback)
+            ctx.voice_client.play(source, after=after_callback)
+        player._start_time = asyncio.get_running_loop().time() - secs
         embed = self._make_embed("⏩ Seek", 0x2ECC71, f"Jumped to **{position}**")
         await ctx.send(embed=embed)
 
@@ -1228,19 +1239,13 @@ class Music(commands.Cog, name="music"):
 
         msg = await ctx.send(embed=self._make_embed("🔍 Searching...", 0x9B59B6, f"Searching lyrics for: **{query}**"))
 
-        loop = asyncio.get_running_loop()
         try:
-            search_query = f"ytsearch1:{query} lyrics official"
-            ydl_opts = get_ytdl_opts()
-            ytdl_instance = yt_dlp.YoutubeDL(ydl_opts)
-            data = await loop.run_in_executor(
-                None,
-                functools.partial(ytdl_instance.extract_info, search_query, download=False),
-            )
+            search_query = youtube_search_query(f"{query} lyrics official")
+            data = await extract_info(search_query, flat=True)
             if data and "entries" in data and data["entries"]:
                 entry = data["entries"][0]
                 title = entry.get("title", query)
-                url = entry.get("webpage_url", "")
+                url = entry.get("webpage_url") or entry.get("url", "")
                 
                 embed = discord.Embed(color=0x9B59B6)
                 embed.set_author(name="🎤 Lyrics Search", icon_url=None)
@@ -1635,3 +1640,7 @@ class Music(commands.Cog, name="music"):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Music(bot))
+
+
+async def teardown(bot: commands.Bot) -> None:
+    shutdown_ytdl_pool()

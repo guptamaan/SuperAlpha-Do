@@ -16,6 +16,7 @@ from bot.services.music.sources import (
     parse_apple_url,
     parse_spotify_url,
     search_query_for,
+    shutdown_ytdl_pool,
     youtube_search_query,
 )
 
@@ -37,5 +38,6 @@ __all__ = [
     "parse_apple_url",
     "parse_spotify_url",
     "search_query_for",
+    "shutdown_ytdl_pool",
     "youtube_search_query",
 ]
